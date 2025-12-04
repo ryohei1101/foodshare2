@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import "package:foodshare/homepage.dart";
+import "package:foodshare/map.dart";
 import "package:foodshare/Postpage.dart";
 import "package:foodshare/profilePage.dart";
-import "package:foodshare/SearchPage.dart";
-import "package:foodshare/ActivityPage.dart";
-import "package:foodshare/Searchpage2.dart";
-import 'package:google_fonts/google_fonts.dart';
+import "package:foodshare/Timeline.dart";
+import "package:foodshare/Searchpage.dart";
 
 class InstaHome extends StatefulWidget {
   const InstaHome({super.key});

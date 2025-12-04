@@ -75,7 +75,7 @@ class _PostPageState extends State<PostPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("投稿"),
+        title: const Text("Post"),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

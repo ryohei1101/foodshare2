@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import "package:foodshare/Standard.dart";
+import "package:foodshare/SignUpPage.dart";
+import "package:foodshare/New_or_login.dart";
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -12,11 +14,16 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
-    // 5秒後にHomePageへ遷移
-    Future.delayed(const Duration(seconds: 5), () {
+
+    Future.delayed(const Duration(seconds: 3), () {
+      bool isLoggedIn = false; // ← とりあえず固定
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) =>const InstaHome()),
+        MaterialPageRoute(
+          builder: (context) =>
+          isLoggedIn ? const InstaHome() : const NewOrLoginPage(),
+        ),
       );
     });
   }

@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   google_fonts: ^6.1.0
   flutter_map: ^6.2.1
   latlong2: ^0.9.1
@@ -70,6 +72,9 @@ flutter:
     - assets/italian.png
     - assets/alcohol.png
     - assets/sweats.png
+    - assets/way1.png
+    - assets/way2.png
+    - assets/way3.png
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

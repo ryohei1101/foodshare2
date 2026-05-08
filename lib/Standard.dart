@@ -6,7 +6,14 @@ import "package:foodshare/Timeline.dart";
 import "package:foodshare/Searchpage.dart";
 
 class InstaHome extends StatefulWidget {
-  const InstaHome({super.key});
+  final String email;
+  final String birthday;
+
+  const InstaHome({
+    super.key,
+    required this.email,
+    required this.birthday,
+  });
 
   @override
   State<InstaHome> createState() => _InstaHomeState();
@@ -15,20 +22,30 @@ class InstaHome extends StatefulWidget {
 class _InstaHomeState extends State<InstaHome> {
   int _currentIndex = 0;
 
-  final _pages = [
-    OSMMapPage(),
-    TimeLinePage(),
-    PostPage(),
-    SearchFromPostsPage(),
-    ProfilePage(),
-  ];
+  late final List<Widget> _pages;
 
-  // ★ 投稿ボタン：常に押した後の色で表示
+  @override
+  void initState() {
+    super.initState();
+
+    _pages = [
+      OSMMapPage(),
+      TimeLinePage(),
+      PostPage(),
+      SearchFromPostsPage(),
+      ProfilePage(
+        email: widget.email,
+        birthday: widget.birthday
+      ),
+    ];
+  }
+
+  // ★ 投稿ボタン
   Widget _postIcon() {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: const BoxDecoration(
-        color: Colors.blueAccent, // ★ 押す前も押した後もこの色
+        color: Colors.blueAccent,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -41,7 +58,7 @@ class _InstaHomeState extends State<InstaHome> {
       child: const Icon(
         Icons.add,
         size: 30,
-        color: Colors.white, // ★ 白アイコンで統一
+        color: Colors.white,
       ),
     );
   }
@@ -57,7 +74,6 @@ class _InstaHomeState extends State<InstaHome> {
         onDestinationSelected: (i) => setState(() {
           _currentIndex = i;
         }),
-
         destinations: [
           const NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -68,14 +84,11 @@ class _InstaHomeState extends State<InstaHome> {
             icon: Icon(Icons.schedule),
             label: '最新',
           ),
-
-          // ★ 投稿ボタン（常に同じ色）
           NavigationDestination(
             icon: _postIcon(),
             selectedIcon: _postIcon(),
             label: '投稿',
           ),
-
           const NavigationDestination(
             icon: Icon(Icons.search),
             label: '検索',

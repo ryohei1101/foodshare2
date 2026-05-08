@@ -22,7 +22,7 @@ class _SplashPageState extends State<SplashPage> {
         context,
         MaterialPageRoute(
           builder: (context) =>
-          isLoggedIn ? const InstaHome() : const NewOrLoginPage(),
+          isLoggedIn ? const NewOrLoginPage() : const NewOrLoginPage(),
         ),
       );
     });

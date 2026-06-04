@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:foodshare/Standard.dart';
-import 'package:foodshare/New_or_login.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:foodshare/New_or_login.dart';
+import 'package:foodshare/Standard.dart';
+import 'package:foodshare/app_ui.dart';
+import 'package:http/http.dart' as http;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,10 +18,18 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController passwordController = TextEditingController();
 
   String errorMessage = "";
+  bool isLoading = false;
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> login() async {
-    String email = emailController.text.trim();
-    String password = passwordController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
       setState(() {
@@ -28,37 +38,30 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    setState(() {
+      isLoading = true;
+      errorMessage = "";
+    });
+
     try {
       final response = await http.post(
         Uri.parse("http://10.0.2.2:8000/login"),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "email": email,
-          "password": password,
-        }),
+        body: jsonEncode({"email": email, "password": password}),
       );
 
-      print("status: ${response.statusCode}");
-      print("body: ${response.body}");
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        setState(() {
-          errorMessage = "";
-        });
-
-        // ⭐ 修正ポイント
-        String emailFromDB = data["email"];
-        String birthday = data["birthday"] ?? "";
-        String userId = data["uuid"]; // ←ここ変更
 
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => InstaHome(
-              email: emailFromDB,
-              birthday: birthday,
+              email: data["email"] ?? "",
+              birthday: data["birthday"] ?? "",
+              profileImage: data["profile_image"] ?? "",
             ),
           ),
         );
@@ -68,98 +71,93 @@ class _LoginPageState extends State<LoginPage> {
           errorMessage = data["detail"] ?? "ログインに失敗しました";
         });
       }
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         errorMessage = "通信エラーが発生しました";
       });
-      print("エラー: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+    return FoodScaffold(
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          "ログイン",
+          style: TextStyle(
+            color: foodInk,
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          "登録したメールアドレスとパスワードを入力してください。",
+          style: TextStyle(color: foodMuted, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 28),
+        FoodCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 30),
-
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "登録情報を入力",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
               TextField(
                 controller: emailController,
+                keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   labelText: "メールアドレス",
                   hintText: "example@gmail.com",
-                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.mail_outline),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               TextField(
                 controller: passwordController,
                 decoration: const InputDecoration(
                   labelText: "パスワード",
-                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_outline),
                 ),
                 obscureText: true,
               ),
-
-              if (errorMessage.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    errorMessage,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ),
-
-              const SizedBox(height: 20),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: login,
-                  child: const Text("ログインする"),
-                ),
+              if (errorMessage.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(errorMessage, style: const TextStyle(color: Colors.red)),
+              ],
+              const SizedBox(height: 22),
+              ElevatedButton.icon(
+                onPressed: isLoading ? null : login,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.login),
+                label: Text(isLoading ? "ログイン中" : "ログインする"),
               ),
-
-              const SizedBox(height: 10),
-
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NewOrLoginPage(),
-                      ),
-                    );
-                  },
-                  child: const Text("戻る"),
-                ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const NewOrLoginPage(),
+                    ),
+                  );
+                },
+                child: const Text("戻る"),
               ),
-
-              const Spacer(),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

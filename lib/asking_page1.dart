@@ -1,16 +1,13 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:foodshare/User_name_register.dart';
+import 'package:foodshare/app_ui.dart';
 
 class QuestionPage extends StatefulWidget {
   final String email;
   final String password;
 
-  const QuestionPage({
-    super.key,
-    required this.email,
-    required this.password,
-  });
+  const QuestionPage({super.key, required this.email, required this.password});
 
   @override
   State<QuestionPage> createState() => _QuestionPageState();
@@ -22,151 +19,120 @@ class _QuestionPageState extends State<QuestionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
+    return FoodScaffold(
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          "プロフィール設定",
+          style: TextStyle(
+            color: foodInk,
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          "おすすめを合わせるための基本情報を入力します。",
+          style: TextStyle(color: foodMuted, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 28),
+        FoodCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 30),
-
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "生年月日を入力",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      SizedBox(
-                        height: 80,
-                        child: CupertinoDatePicker(
-                          mode: CupertinoDatePickerMode.date,
-                          dateOrder: DatePickerDateOrder.ymd,
-                          initialDateTime: selectedDate,
-                          minimumDate: DateTime(1900, 1, 1),
-                          maximumDate: DateTime.now(),
-                          onDateTimeChanged: (DateTime newDate) {
-                            setState(() {
-                              selectedDate = newDate;
-                            });
-                          },
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "性別を入力",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          genderButton("男性"),
-                          genderButton("女性"),
-                          genderButton("その他"),
-                        ],
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      // ⭐ 修正ポイント
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                          ),
-                          onPressed: selectedGender == null
-                              ? null
-                              : () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => UserNamePage(
-                                  email: widget.email,
-                                  password: widget.password,
-                                  gender: selectedGender!,
-                                  birthday: selectedDate,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text("次へ"),
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text("戻る"),
-                        ),
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      const Text(
-                        "２.次に行く店の相談から待ち合わせまで",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      Image.asset(
-                        'assets/way2.png',
-                        height: 300,
-                      ),
-                    ],
-                  ),
+              const FoodSectionTitle("生年月日"),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 150,
+                child: CupertinoDatePicker(
+                  mode: CupertinoDatePickerMode.date,
+                  dateOrder: DatePickerDateOrder.ymd,
+                  initialDateTime: selectedDate,
+                  minimumDate: DateTime(1900, 1, 1),
+                  maximumDate: DateTime.now(),
+                  onDateTimeChanged: (DateTime newDate) {
+                    setState(() {
+                      selectedDate = newDate;
+                    });
+                  },
                 ),
+              ),
+              const SizedBox(height: 20),
+              const FoodSectionTitle("性別"),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  genderButton("男性"),
+                  genderButton("女性"),
+                  genderButton("その他"),
+                ],
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: selectedGender == null
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => UserNamePage(
+                              email: widget.email,
+                              password: widget.password,
+                              gender: selectedGender!,
+                              birthday: selectedDate,
+                            ),
+                          ),
+                        );
+                      },
+                child: const Text("次へ"),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("戻る"),
               ),
             ],
           ),
         ),
-      ),
+        const SizedBox(height: 28),
+        const Text(
+          "次に行く店の相談から待ち合わせまで",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: foodInk,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 14),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Image.asset('assets/way2.png', height: 230, fit: BoxFit.cover),
+        ),
+      ],
     );
   }
 
   Widget genderButton(String gender) {
     final isSelected = selectedGender == gender;
 
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
-        foregroundColor: isSelected ? Colors.white : Colors.black,
-      ),
-      onPressed: () {
+    return ChoiceChip(
+      label: Text(gender),
+      selected: isSelected,
+      onSelected: (_) {
         setState(() {
           selectedGender = gender;
         });
       },
-      child: Text(gender),
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : foodInk,
+        fontWeight: FontWeight.w700,
+      ),
+      selectedColor: foodPrimary,
+      backgroundColor: Colors.white,
+      side: const BorderSide(color: foodLine),
     );
   }
 }

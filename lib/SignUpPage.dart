@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:foodshare/asking_page1.dart';
 import 'package:foodshare/New_or_login.dart';
+import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/asking_page1.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -14,125 +15,98 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController passwordController = TextEditingController();
 
   @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+    return FoodScaffold(
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          "アカウント作成",
+          style: TextStyle(
+            color: foodInk,
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          "まずはログインに使う情報を登録します。",
+          style: TextStyle(color: foodMuted, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 28),
+        FoodCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 30),
-
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "登録情報を入力",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 50),
-
-                      TextField(
-                        controller: emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: "メールアドレス",
-                          hintText: "example@gmail.com",
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-
-                      const SizedBox(height: 30),
-
-                      TextField(
-                        controller: passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: "パスワード",
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      // ⭐ 修正済みボタン
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                          ),
-                          onPressed: () {
-                            String email = emailController.text;
-                            String password = passwordController.text;
-
-                            print("email: $email");
-                            print("password: $password");
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => QuestionPage(
-                                  email: email,
-                                  password: password,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text("次へ"),
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const NewOrLoginPage(),
-                              ),
-                            );
-                          },
-                          child: const Text("戻る"),
-                        ),
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      const Text(
-                        "１.最近行った店を投稿して、\n自分と好みの合う人を見つけよう！",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      Image.asset(
-                        'assets/way1.png',
-                        height: 300,
-                      ),
-                    ],
-                  ),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: "メールアドレス",
+                  hintText: "example@gmail.com",
+                  prefixIcon: Icon(Icons.mail_outline),
                 ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "パスワード",
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  final email = emailController.text.trim();
+                  final password = passwordController.text.trim();
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          QuestionPage(email: email, password: password),
+                    ),
+                  );
+                },
+                child: const Text("次へ"),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NewOrLoginPage()),
+                  );
+                },
+                child: const Text("戻る"),
               ),
             ],
           ),
         ),
-      ),
+        const SizedBox(height: 28),
+        const Text(
+          "最近行った店を投稿して、好みの合う人を見つけよう",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: foodInk,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 14),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Image.asset('assets/way1.png', height: 230, fit: BoxFit.cover),
+        ),
+      ],
     );
   }
 }

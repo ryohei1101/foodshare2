@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:foodshare/SignUpPage.dart';
+import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/login.dart';
 
 class NewOrLoginPage extends StatelessWidget {
@@ -8,101 +9,110 @@ class NewOrLoginPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // ⭐ 左上
-          Positioned(
-            top: 0,
-            left: 0,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                'assets/way1.png',
-                width: 180,
-              ),
-            ),
-          ),
-
-          // ⭐ 右上
-          Positioned(
-            top: 120,
-            right: 0,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                'assets/way2.png',
-                width: 180,
-              ),
-            ),
-          ),
-
-          // ⭐ メインUI（先に書く）
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  "Food Shareへようこそ",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 48,
                 ),
-
-                const SizedBox(height: 40),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SignUpPage(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.asset(
+                              'assets/way1.png',
+                              height: 150,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
-                      );
-                    },
-                    child: const Text("新規作成"),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginPage(),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.asset(
+                              'assets/way2.png',
+                              height: 150,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
-                      );
-                    },
-                    child: const Text("ログイン"),
-                  ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    const Text(
+                      'Food Share',
+                      style: TextStyle(
+                        color: foodInk,
+                        fontSize: 38,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '好きな店と食の好みでつながる',
+                      style: TextStyle(
+                        color: foodMuted,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: constraints.maxHeight < 720 ? 28 : 72),
+                    FoodCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SignUpPage(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.person_add_alt_1),
+                            label: const Text('新規作成'),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LoginPage(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.login),
+                            label: const Text('ログイン'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/way3.png',
+                        height: 190,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-
-          // ⭐ 一番最後に書く → 最前面
-          Positioned(
-            bottom: 50,
-            left: 0,
-            right: 0,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                'assets/way3.png',
-                height: 300,
-                fit: BoxFit.cover,
               ),
-            ),
-          ),
-        ],
-      )
+            );
+          },
+        ),
+      ),
     );
   }
 }

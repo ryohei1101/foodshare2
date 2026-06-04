@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:foodshare/app_ui.dart';
 
 class SearchFromPostsPage extends StatefulWidget {
   const SearchFromPostsPage({super.key});
@@ -28,10 +29,19 @@ class _SearchFromPostsPageState extends State<SearchFromPostsPage> {
 
   // 🔹 価格帯
   final List<String> _prices = [
-    "~2000円", "2000~3000円", "3000~4000円", "4000~5000円",
-    "5000~6000円", "6000~7000円", "7000~8000円", "8000~9000円",
-    "9000~10000円", "10000~15000円", "15000~20000円",
-    "20000~30000円", "30000円以上"
+    "~2000円",
+    "2000~3000円",
+    "3000~4000円",
+    "4000~5000円",
+    "5000~6000円",
+    "6000~7000円",
+    "7000~8000円",
+    "8000~9000円",
+    "9000~10000円",
+    "10000~15000円",
+    "15000~20000円",
+    "20000~30000円",
+    "30000円以上",
   ];
 
   // 🔹 場所
@@ -39,8 +49,17 @@ class _SearchFromPostsPageState extends State<SearchFromPostsPage> {
 
   // 🔹 Chip タグ（復活させる部分）
   final List<String> _tags = [
-    "#一人で", "#デート", "#友達と", "#家族と", "#にぎやか", "#落ち着いている",
-    "#男性多め", "#女性多め", "#個室", "#ランチ", "#ディナー"
+    "#一人で",
+    "#デート",
+    "#友達と",
+    "#家族と",
+    "#にぎやか",
+    "#落ち着いている",
+    "#男性多め",
+    "#女性多め",
+    "#個室",
+    "#ランチ",
+    "#ディナー",
   ];
 
   void _filterPosts() {
@@ -55,7 +74,7 @@ class _SearchFromPostsPageState extends State<SearchFromPostsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        FoodSectionTitle(title),
         const SizedBox(height: 8),
 
         SizedBox(
@@ -79,14 +98,12 @@ class _SearchFromPostsPageState extends State<SearchFromPostsPage> {
                   });
                 },
                 child: Container(
-                  width: 70,
-                  height: 70,
+                  width: 86,
+                  height: 86,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isSelected
-                          ? Colors.orangeAccent
-                          : Colors.grey.shade300,
+                      color: isSelected ? foodPrimary : Colors.grey.shade300,
                       width: isSelected ? 3 : 1,
                     ),
                     image: DecorationImage(
@@ -114,58 +131,76 @@ class _SearchFromPostsPageState extends State<SearchFromPostsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              '条件で探す',
+              style: TextStyle(
+                color: foodInk,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '場所、価格帯、カテゴリ、タグから投稿を絞り込みます。',
+              style: TextStyle(color: foodMuted, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 24),
 
             // -----------------------------
             // 🔸 場所（Dropdown）
             // -----------------------------
-            const Text('場所を選択', style: TextStyle(fontWeight: FontWeight.bold)),
+            const FoodSectionTitle('場所を選択'),
             const SizedBox(height: 8),
 
             DropdownButtonFormField<String>(
-              value: _selectedLocation,
+              initialValue: _selectedLocation,
               hint: const Text('場所を選択してください'),
-              items: _locations.map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+              items: _locations
+                  .map((l) => DropdownMenuItem(value: l, child: Text(l)))
+                  .toList(),
               onChanged: (val) {
                 _selectedLocation = val;
                 _filterPosts();
               },
               decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
 
             const SizedBox(height: 24),
 
-
             // -----------------------------
             // 🔸 価格帯（Dropdown）
             // -----------------------------
-            const Text('価格帯を選択', style: TextStyle(fontWeight: FontWeight.bold)),
+            const FoodSectionTitle('価格帯を選択'),
             const SizedBox(height: 8),
 
             DropdownButtonFormField<String>(
-              value: _selectedPrice,
+              initialValue: _selectedPrice,
               hint: const Text('価格帯を選択してください'),
-              items: _prices.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+              items: _prices
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                  .toList(),
               onChanged: (val) {
                 _selectedPrice = val;
                 _filterPosts();
               },
               decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
 
             const SizedBox(height: 24),
 
-            _buildPhotoSelector(
-              title: "カテゴリ",
-              items: _categoryItems,
-            ),
+            _buildPhotoSelector(title: "カテゴリ", items: _categoryItems),
             // -----------------------------
             // 🔸 タグ選択（Chip UI ← 復活！）
             // -----------------------------
-            const Text('タグを選択', style: TextStyle(fontWeight: FontWeight.bold)),
+            const FoodSectionTitle('タグを選択'),
             const SizedBox(height: 8),
 
             Wrap(
@@ -186,13 +221,14 @@ class _SearchFromPostsPageState extends State<SearchFromPostsPage> {
                     label: Text(
                       tag,
                       style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.orangeAccent,
+                        color: isSelected ? Colors.white : foodPrimary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    backgroundColor:
-                    isSelected ? Colors.orangeAccent : Colors.orangeAccent.withOpacity(0.2),
-                    side: const BorderSide(color: Colors.orangeAccent),
+                    backgroundColor: isSelected
+                        ? foodPrimary
+                        : const Color(0xFFFFEFE3),
+                    side: const BorderSide(color: foodPrimary),
                   ),
                 );
               }).toList(),
@@ -209,7 +245,7 @@ class _SearchFromPostsPageState extends State<SearchFromPostsPage> {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.orangeAccent,
+                  color: foodPrimary,
                 ),
               ),
             ),

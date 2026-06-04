@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:foodshare/app_ui.dart';
 
 class TimeLinePage extends StatefulWidget {
   const TimeLinePage({super.key});
@@ -18,16 +19,25 @@ class _TimeLinePageState extends State<TimeLinePage>
   }
 
   @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Timeline"),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.black,
-          unselectedLabelColor: Colors.grey,
-          labelStyle:
-          const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          labelColor: foodPrimary,
+          unselectedLabelColor: foodMuted,
+          indicatorColor: foodPrimary,
+          labelStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
           tabs: const [
             Tab(text: "おすすめ"),
             Tab(text: "フォロー中"),
@@ -36,27 +46,31 @@ class _TimeLinePageState extends State<TimeLinePage>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [
-          _InstaLikeFeed(),
-          _InstaLikeFeed(), // フォロー中も同じUIにしているが、後でデータ切替可能
-        ],
+        children: const [_InstaLikeFeed(), _InstaLikeFeed()],
       ),
     );
   }
 }
 
 class _InstaLikeFeed extends StatelessWidget {
-  const _InstaLikeFeed({super.key});
+  const _InstaLikeFeed();
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
       itemCount: 10,
+      separatorBuilder: (_, __) => const SizedBox(height: 14),
       itemBuilder: (_, i) {
+        final images = [
+          'assets/pasta.png',
+          'assets/sushi.png',
+          'assets/stake.png',
+        ];
         return InstaPostCard(
           userName: "User $i",
           userIcon: Icons.person,
-          imagePath: "assets/pasta.png", // ★ あなたの assets 画像を使える
+          imagePath: images[i % images.length],
           comment: "これは投稿 $i です。美味しかった！ #foodshare",
         );
       },
@@ -80,48 +94,38 @@ class InstaPostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return FoodCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 投稿者行
           ListTile(
+            contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
             leading: CircleAvatar(
-              child: Icon(userIcon),
+              backgroundColor: const Color(0xFFFFEFE3),
+              child: Icon(userIcon, color: foodPrimary),
             ),
             title: Text(
               userName,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
+            subtitle: const Text("おすすめの投稿"),
           ),
-
-          // 写真部分
           AspectRatio(
-            aspectRatio: 1, // インスタのように正方形
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.cover,
-              ),
+            aspectRatio: 1.05,
+            child: Image.asset(
+              imagePath,
+              width: double.infinity,
+              fit: BoxFit.cover,
             ),
           ),
-
-          const SizedBox(height: 8),
-
-          // コメント
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
             child: Text(
               comment,
-              style: const TextStyle(fontSize: 14),
+              style: const TextStyle(fontSize: 14, height: 1.45),
             ),
           ),
-
-          const SizedBox(height: 12),
         ],
       ),
     );

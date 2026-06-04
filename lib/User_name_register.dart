@@ -1,7 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:foodshare/Standard.dart';
+import 'package:foodshare/app_ui.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class UserNamePage extends StatefulWidget {
   final String email;
@@ -23,6 +25,7 @@ class UserNamePage extends StatefulWidget {
 
 class _UserNamePageState extends State<UserNamePage> {
   final TextEditingController nameController = TextEditingController();
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -30,7 +33,6 @@ class _UserNamePageState extends State<UserNamePage> {
     super.dispose();
   }
 
-  // register APIを呼び出して、成功したら true を返す
   Future<bool> registerUser({
     required String email,
     required String password,
@@ -53,145 +55,125 @@ class _UserNamePageState extends State<UserNamePage> {
         }),
       );
 
-      print("status: ${response.statusCode}");
-      print("body: ${response.body}");
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      } else {
-        print("登録失敗: ${response.statusCode}");
-        return false;
-      }
-    } catch (e) {
-      print("エラー: $e");
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (_) {
       return false;
+    }
+  }
+
+  Future<void> completeRegistration() async {
+    final username = nameController.text.trim();
+
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("ユーザー名を入力してください")));
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    final isSuccess = await registerUser(
+      email: widget.email,
+      password: widget.password,
+      username: username,
+      gender: widget.gender,
+      birthday: widget.birthday,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = false;
+    });
+
+    if (isSuccess) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InstaHome(
+            email: widget.email,
+            birthday: widget.birthday.toIso8601String().split("T")[0],
+            profileImage: "",
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("登録に失敗しました")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 60),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "ユーザー名を入力してください",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 80),
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: "ユーザー名",
-                        hintText: "例: foodlover123",
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 500),
-                    const Text(
-                      "３.条件に合わせて近くの店を検索",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Image.asset(
-                      'assets/way3.png',
-                      height: 300,
-                    ),
-                    const SizedBox(height: 40),
-                  ],
+    return FoodScaffold(
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          "ユーザー名",
+          style: TextStyle(
+            color: foodInk,
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          "Food Shareで表示する名前を入力してください。",
+          style: TextStyle(color: foodMuted, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 28),
+        FoodCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: "ユーザー名",
+                  hintText: "例: foodlover123",
+                  prefixIcon: Icon(Icons.badge_outlined),
                 ),
               ),
-            ),
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 430,
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        print("完了ボタン押された");
-
-                        final username = nameController.text.trim();
-
-                        if (username.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("ユーザー名を入力してください"),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final isSuccess = await registerUser(
-                          email: widget.email,
-                          password: widget.password,
-                          username: username,
-                          gender: widget.gender,
-                          birthday: widget.birthday,
-                        );
-
-                        if (!context.mounted) return;
-
-                        if (isSuccess) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => InstaHome(
-                                email: widget.email,
-                                birthday: widget.birthday
-                                    .toIso8601String()
-                                    .split("T")[0],
-                              ),
-                            ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("登録に失敗しました"),
-                            ),
-                          );
-                        }
-                      },
-                      child: const Text("完了"),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text("戻る"),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: isLoading ? null : completeRegistration,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check),
+                label: Text(isLoading ? "登録中" : "完了"),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("戻る"),
+              ),
+            ],
+          ),
         ),
-      ),
+        const SizedBox(height: 28),
+        const Text(
+          "条件に合わせて近くの店を検索",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: foodInk,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 14),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Image.asset('assets/way3.png', height: 230, fit: BoxFit.cover),
+        ),
+      ],
     );
   }
 }

@@ -159,9 +159,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
                     if (titleController.text.trim().isEmpty ||
                         shopNameController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('タイトルと店名は必須です。'),
-                        ),
+                        const SnackBar(content: Text('タイトルと店名は必須です。')),
                       );
                       return;
                     }
@@ -196,9 +194,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('「${createdPin.shopName}」のピンを追加しました。'),
-      ),
+      SnackBar(content: Text('「${createdPin.shopName}」のピンを追加しました。')),
     );
   }
 
@@ -237,8 +233,8 @@ class _OSMMapPageState extends State<OSMMapPage> {
                       ),
                       decoration: BoxDecoration(
                         color: pin.isMine
-                            ? Colors.blue.withOpacity(0.15)
-                            : Colors.redAccent.withOpacity(0.15),
+                            ? Colors.blue.withValues(alpha: 0.15)
+                            : Colors.redAccent.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(pin.isMine ? '自分のピン' : '他の人のピン'),
@@ -269,9 +265,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
                   ),
                   const SizedBox(height: 8),
                 ],
-                Text(
-                  pin.memo.isEmpty ? 'メモはありません。' : pin.memo,
-                ),
+                Text(pin.memo.isEmpty ? 'メモはありません。' : pin.memo),
                 const SizedBox(height: 8),
                 Text(
                   '緯度 ${pin.point.latitude.toStringAsFixed(5)} / 経度 ${pin.point.longitude.toStringAsFixed(5)}',
@@ -314,9 +308,9 @@ class _OSMMapPageState extends State<OSMMapPage> {
               circles: [
                 CircleMarker(
                   point: fakeCurrentPos,
-                  color: Colors.blue.withOpacity(0.2),
+                  color: Colors.blue.withValues(alpha: 0.2),
                   borderStrokeWidth: 1,
-                  borderColor: Colors.blue.withOpacity(0.5),
+                  borderColor: Colors.blue.withValues(alpha: 0.5),
                   useRadiusInMeter: true,
                   radius: fakeAccuracy,
                 ),
@@ -369,7 +363,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
           right: 16,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.92),
+              color: Colors.white.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(14),
               boxShadow: const [
                 BoxShadow(

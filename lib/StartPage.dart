@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import "package:foodshare/Standard.dart";
-import "package:foodshare/SignUpPage.dart";
 import "package:foodshare/New_or_login.dart";
 
 class SplashPage extends StatefulWidget {
@@ -16,14 +14,11 @@ class _SplashPageState extends State<SplashPage> {
     super.initState();
 
     Future.delayed(const Duration(seconds: 3), () {
-      bool isLoggedIn = false; // ← とりあえず固定
+      if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) =>
-          isLoggedIn ? const NewOrLoginPage() : const NewOrLoginPage(),
-        ),
+        MaterialPageRoute(builder: (context) => const NewOrLoginPage()),
       );
     });
   }
@@ -39,7 +34,7 @@ class _SplashPageState extends State<SplashPage> {
             // ❤️ 背景ハート
             Icon(
               Icons.favorite,
-              color: Colors.redAccent.withOpacity(0.4), // 半透明にして柔らかく
+              color: Colors.redAccent.withValues(alpha: 0.4), // 半透明にして柔らかく
               size: 400, // ハートの大きさ（大きめ）
             ),
 

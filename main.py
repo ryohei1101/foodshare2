@@ -20,18 +20,27 @@ import uuid
 
 from datetime import datetime
 
+from pathlib import Path
+
 
 app = FastAPI()
+
+BASE_DIR = Path(__file__).resolve().parent
+UPLOADS_DIR = BASE_DIR / "uploads"
+POSTS_DIR = BASE_DIR / "Posts"
+
+UPLOADS_DIR.mkdir(exist_ok=True)
+POSTS_DIR.mkdir(exist_ok=True)
 
 # ⭐ uploads フォルダ公開
 app.mount(
     "/uploads",
-    StaticFiles(directory="uploads"),
+    StaticFiles(directory=UPLOADS_DIR),
     name="uploads"
 )
 app.mount(
     "/Posts",
-    StaticFiles(directory="Posts"),
+    StaticFiles(directory=POSTS_DIR),
     name="Posts"
 )
 

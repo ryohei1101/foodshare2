@@ -821,6 +821,9 @@ def get_users(
 
     ensure_follows_table()
 
+    search_query = query.strip() if query else ""
+    safe_limit = max(1, min(limit, 100))
+
     conn = get_db_connection()
 
     cur = conn.cursor()
@@ -835,11 +838,11 @@ def get_users(
 
         params.append(exclude_email)
 
-    if query:
+    if search_query:
 
-        conditions.append("(u.username ILIKE %s OR u.email ILIKE %s)")
+        conditions.append("(COALESCE(u.username, '') ILIKE %s OR u.email ILIKE %s)")
 
-        params.extend([f"%{query}%", f"%{query}%"])
+        params.extend([f"%{search_query}%", f"%{search_query}%"])
 
     where_clause = ""
 
@@ -847,7 +850,7 @@ def get_users(
 
         where_clause = "WHERE " + " AND ".join(conditions)
 
-    params.append(limit)
+    params.append(safe_limit)
 
     cur.execute(
         f"""
@@ -863,7 +866,7 @@ def get_users(
             ) AS is_following
         FROM users u
         {where_clause}
-        ORDER BY username ASC
+        ORDER BY LOWER(COALESCE(NULLIF(u.username, ''), u.email)) ASC
         LIMIT %s
         """,
         tuple(params)

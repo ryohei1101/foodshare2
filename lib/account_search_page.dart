@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -17,27 +18,30 @@ class AccountSearchPage extends StatefulWidget {
 class _AccountSearchPageState extends State<AccountSearchPage> {
   final TextEditingController _queryController = TextEditingController();
   Future<List<FoodUser>>? _usersFuture;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _usersFuture = _fetchUsers();
+    _queryController.addListener(_scheduleSearch);
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _queryController.removeListener(_scheduleSearch);
     _queryController.dispose();
     super.dispose();
   }
 
   Future<List<FoodUser>> _fetchUsers() async {
     final query = _queryController.text.trim();
-    final uri = Uri.parse(
-      'http://10.0.2.2:8000/users'
-      '?exclude_email=${Uri.encodeComponent(widget.currentEmail)}'
-      '&viewer_email=${Uri.encodeComponent(widget.currentEmail)}'
-      '${query.isEmpty ? '' : '&query=${Uri.encodeComponent(query)}'}',
-    );
+    final uri = Uri.http('10.0.2.2:8000', '/users', {
+      'exclude_email': widget.currentEmail,
+      'viewer_email': widget.currentEmail,
+      if (query.isNotEmpty) 'query': query,
+    });
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
@@ -52,7 +56,13 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
         .toList();
   }
 
+  void _scheduleSearch() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), _search);
+  }
+
   void _search() {
+    _searchDebounce?.cancel();
     setState(() {
       _usersFuture = _fetchUsers();
     });
@@ -61,7 +71,7 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
   Future<void> _toggleFollow(FoodUser user) async {
     final endpoint = user.isFollowing ? 'unfollow' : 'follow';
 
-    await http.post(
+    final response = await http.post(
       Uri.parse('http://10.0.2.2:8000/$endpoint'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
@@ -69,6 +79,15 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
         'following_email': user.email,
       }),
     );
+
+    if (!mounted) return;
+
+    if (response.statusCode != 200) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('フォロー状態を更新できませんでした')));
+      return;
+    }
 
     _search();
   }
@@ -87,7 +106,7 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => _search(),
                 decoration: InputDecoration(
-                  hintText: 'IDまたはメールで検索',
+                  hintText: 'ユーザーIDで検索',
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: IconButton(
                     onPressed: _search,
@@ -106,9 +125,21 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
 
                   if (snapshot.hasError) {
                     return Center(
-                      child: Text(
-                        snapshot.error.toString(),
-                        style: const TextStyle(color: foodMuted),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: foodMuted,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            snapshot.error.toString(),
+                            style: const TextStyle(color: foodMuted),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     );
                   }

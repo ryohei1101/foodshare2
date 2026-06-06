@@ -94,95 +94,181 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('アカウント検索')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: TextField(
-                controller: _queryController,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => _search(),
-                decoration: InputDecoration(
-                  hintText: 'ユーザーIDで検索',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    onPressed: _search,
-                    icon: const Icon(Icons.arrow_forward),
+    return ColoredBox(
+      color: foodSurface,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'アカウント検索',
+                style: TextStyle(
+                  color: foodInk,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 54,
+                child: TextField(
+                  controller: _queryController,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _search(),
+                  decoration: InputDecoration(
+                    hintText: 'ユーザーIDで検索',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      onPressed: _search,
+                      icon: const Icon(Icons.arrow_forward),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: foodLine),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: foodLine),
+                    ),
                   ),
                 ),
               ),
-            ),
-            Expanded(
-              child: FutureBuilder<List<FoodUser>>(
-                future: _usersFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+              const SizedBox(height: 8),
+              Expanded(
+                child: FutureBuilder<List<FoodUser>>(
+                  future: _usersFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: foodMuted,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            snapshot.error.toString(),
-                            style: const TextStyle(color: foodMuted),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final users = snapshot.data ?? [];
-
-                  if (users.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        '該当するアカウントがありません',
-                        style: TextStyle(color: foodMuted),
-                      ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                    itemCount: users.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final user = users[index];
-
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: NetworkImage(user.profileImageUrl),
-                        ),
-                        title: Text(
-                          user.username.isEmpty ? user.email : user.username,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(user.email),
-                        trailing: OutlinedButton(
-                          onPressed: () => _toggleFollow(user),
-                          child: Text(user.isFollowing ? '解除' : 'フォロー'),
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: foodMuted,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              snapshot.error.toString(),
+                              style: const TextStyle(color: foodMuted),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       );
-                    },
-                  );
-                },
+                    }
+
+                    final users = snapshot.data ?? [];
+
+                    if (users.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          '該当するアカウントがありません',
+                          style: TextStyle(color: foodMuted),
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      itemCount: users.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final user = users[index];
+
+                        return _AccountSearchRow(
+                          user: user,
+                          onFollowPressed: () => _toggleFollow(user),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _AccountSearchRow extends StatelessWidget {
+  const _AccountSearchRow({required this.user, required this.onFollowPressed});
+
+  final FoodUser user;
+  final VoidCallback onFollowPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = user.username.isEmpty ? user.email : user.username;
+
+    return SizedBox(
+      height: 76,
+      child: Row(
+        children: [
+          ClipOval(
+            child: Image.network(
+              user.profileImageUrl,
+              width: 46,
+              height: 46,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) {
+                return Container(
+                  width: 46,
+                  height: 46,
+                  color: foodLine,
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.person, color: foodMuted),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: foodInk,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  user.email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: foodMuted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 96,
+            height: 38,
+            child: OutlinedButton(
+              onPressed: onFollowPressed,
+              child: Text(user.isFollowing ? '解除' : 'フォロー'),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:foodshare/PostPage.dart';
 import 'package:latlong2/latlong.dart';
 
 class FoodPin {
@@ -25,7 +26,9 @@ class FoodPin {
 }
 
 class OSMMapPage extends StatefulWidget {
-  const OSMMapPage({super.key});
+  const OSMMapPage({super.key, required this.email});
+
+  final String email;
 
   @override
   State<OSMMapPage> createState() => _OSMMapPageState();
@@ -279,6 +282,23 @@ class _OSMMapPageState extends State<OSMMapPage> {
     );
   }
 
+  void _openPostPage(LatLng point) {
+    setState(() {
+      _pendingPinPoint = null;
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PostPage(
+          email: widget.email,
+          latitude: point.latitude,
+          longitude: point.longitude,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -445,15 +465,29 @@ class _OSMMapPageState extends State<OSMMapPage> {
                               if (point == null) {
                                 return;
                               }
-                              setState(() {
-                                _pendingPinPoint = null;
-                              });
-                              _showCreatePinDialog(point);
+                              _openPostPage(point);
                             },
-                            child: const Text('ピンを立てる'),
+                            child: const Text('投稿する'),
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          final point = _pendingPinPoint;
+                          if (point == null) {
+                            return;
+                          }
+                          setState(() {
+                            _pendingPinPoint = null;
+                          });
+                          _showCreatePinDialog(point);
+                        },
+                        child: const Text('ピンを立てる'),
+                      ),
                     ),
                   ],
                 ),

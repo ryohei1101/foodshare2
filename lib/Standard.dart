@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import "package:foodshare/map.dart";
-import "package:foodshare/Postpage.dart";
 import "package:foodshare/profilePage.dart";
 import "package:foodshare/Timeline.dart";
 import "package:foodshare/Searchpage.dart";
-import 'package:foodshare/app_ui.dart';
 
 class InstaHome extends StatefulWidget {
   final String email;
@@ -32,11 +30,9 @@ class _InstaHomeState extends State<InstaHome> {
     super.initState();
 
     _pages = [
-      OSMMapPage(),
+      OSMMapPage(email: widget.email),
 
       TimeLinePage(),
-
-      PostPage(email: widget.email),
 
       SearchFromPostsPage(),
 
@@ -46,25 +42,6 @@ class _InstaHomeState extends State<InstaHome> {
         profileImage: widget.profileImage,
       ),
     ];
-  }
-
-  // ⭐ 投稿ボタン
-  Widget _postIcon() {
-    return Container(
-      padding: const EdgeInsets.all(6),
-
-      decoration: const BoxDecoration(
-        color: foodPrimary,
-
-        shape: BoxShape.circle,
-
-        boxShadow: [
-          BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
-        ],
-      ),
-
-      child: const Icon(Icons.add, size: 30, color: Colors.white),
-    );
   }
 
   @override
@@ -93,12 +70,6 @@ class _InstaHomeState extends State<InstaHome> {
           ),
 
           const NavigationDestination(icon: Icon(Icons.schedule), label: '最新'),
-
-          NavigationDestination(
-            icon: _postIcon(),
-            selectedIcon: _postIcon(),
-            label: '投稿',
-          ),
 
           const NavigationDestination(icon: Icon(Icons.search), label: '検索'),
 

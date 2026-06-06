@@ -1,32 +1,48 @@
-import 'package:flutter/material.dart';
 import 'dart:io';
+
+import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 class PostPage extends StatefulWidget {
-  final String email;
+  const PostPage({
+    super.key,
+    required this.email,
+    this.latitude,
+    this.longitude,
+  });
 
-  const PostPage({super.key, required this.email});
+  final String email;
+  final double? latitude;
+  final double? longitude;
 
   @override
   State<PostPage> createState() => _PostPageState();
 }
 
 class _PostPageState extends State<PostPage> {
-  File? _selectedImage;
-
-  String? _selectedCategory;
-
-  String? _selectedPrice;
-
+  final ImagePicker _picker = ImagePicker();
   final TextEditingController _locationController = TextEditingController();
-
   final TextEditingController _commentController = TextEditingController();
+  final Set<String> _selectedTags = {};
 
-  final List<String> _categories = ['和食', '洋食', '中華', 'スイーツ', 'ドリンク', 'その他'];
+  File? _selectedImage;
+  String? _selectedCategory;
+  String? _selectedPrice;
+  bool _isDetailStep = false;
+  bool _isSubmitting = false;
 
-  final List<String> _pricetags = [
+  final List<String> _categories = const [
+    '和食',
+    '洋食',
+    '中華',
+    'スイーツ',
+    'ドリンク',
+    'その他',
+  ];
+
+  final List<String> _priceTags = const [
     "~2000円",
     "2000~3000円",
     "3000円~4000円",
@@ -42,7 +58,7 @@ class _PostPageState extends State<PostPage> {
     "30000円以上",
   ];
 
-  final List<String> _tags = [
+  final List<String> _tags = const [
     "#一人で",
     '#デート',
     "#友達と",
@@ -56,11 +72,22 @@ class _PostPageState extends State<PostPage> {
     '#ディナー',
   ];
 
-  final Set<String> _selectedTags = {};
+  @override
+  void initState() {
+    super.initState();
+    if (widget.latitude != null && widget.longitude != null) {
+      _locationController.text =
+          '${widget.latitude!.toStringAsFixed(5)}, ${widget.longitude!.toStringAsFixed(5)}';
+    }
+  }
 
-  final ImagePicker _picker = ImagePicker();
+  @override
+  void dispose() {
+    _locationController.dispose();
+    _commentController.dispose();
+    super.dispose();
+  }
 
-  // ⭐ 画像選択
   Future<void> _pickImage() async {
     final picked = await _picker.pickImage(source: ImageSource.gallery);
 
@@ -71,7 +98,6 @@ class _PostPageState extends State<PostPage> {
     }
   }
 
-  // ⭐ タグ追加削除
   void _toggleTag(String tag) {
     setState(() {
       if (_selectedTags.contains(tag)) {
@@ -81,52 +107,52 @@ class _PostPageState extends State<PostPage> {
       }
 
       _commentController.text = _selectedTags.join(' ');
-
       _commentController.selection = TextSelection.fromPosition(
         TextPosition(offset: _commentController.text.length),
       );
     });
   }
 
-  // ⭐ 投稿処理
   Future<void> _submitPost() async {
     if (_selectedImage == null ||
         _selectedCategory == null ||
-        _locationController.text.isEmpty ||
-        _commentController.text.isEmpty ||
-        _selectedPrice == null) {
+        _selectedPrice == null ||
+        _locationController.text.trim().isEmpty ||
+        _commentController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('すべての項目を入力してください。')));
-
       return;
     }
 
-    try {
-      var request = http.MultipartRequest(
-        'POST',
+    setState(() {
+      _isSubmitting = true;
+    });
 
+    try {
+      final request = http.MultipartRequest(
+        'POST',
         Uri.parse("http://10.0.2.2:8000/upload-post"),
       );
 
-      // ⭐ form data
       request.fields['user_email'] = widget.email;
-
       request.fields['category'] = _selectedCategory!;
-
       request.fields['price_range'] = _selectedPrice!;
+      request.fields['location'] = _locationController.text.trim();
+      request.fields['comment'] = _commentController.text.trim();
 
-      request.fields['location'] = _locationController.text;
+      if (widget.latitude != null) {
+        request.fields['latitude'] = widget.latitude.toString();
+      }
+      if (widget.longitude != null) {
+        request.fields['longitude'] = widget.longitude.toString();
+      }
 
-      request.fields['comment'] = _commentController.text;
-
-      // ⭐ image file
       request.files.add(
         await http.MultipartFile.fromPath('file', _selectedImage!.path),
       );
 
-      // ⭐ request send
-      var response = await request.send();
+      final response = await request.send();
 
       if (!mounted) return;
 
@@ -134,21 +160,7 @@ class _PostPageState extends State<PostPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('投稿成功！')));
-
-        // ⭐ 初期化
-        setState(() {
-          _selectedImage = null;
-
-          _selectedCategory = null;
-
-          _selectedPrice = null;
-
-          _locationController.clear();
-
-          _commentController.clear();
-
-          _selectedTags.clear();
-        });
+        Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(
           context,
@@ -162,229 +174,196 @@ class _PostPageState extends State<PostPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('通信エラー')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Post")),
+      appBar: AppBar(
+        title: Text(_isDetailStep ? '投稿内容' : '写真を選択'),
+        leading: IconButton(
+          onPressed: () {
+            if (_isDetailStep) {
+              setState(() {
+                _isDetailStep = false;
+              });
+            } else {
+              Navigator.pop(context);
+            }
+          },
+          icon: const Icon(Icons.arrow_back),
+        ),
+      ),
+      body: _isDetailStep ? _buildDetailStep() : _buildPhotoStep(),
+    );
+  }
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+  Widget _buildPhotoStep() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: foodLine),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: _selectedImage == null
+                        ? const Center(
+                            child: Icon(
+                              Icons.add_photo_alternate_outlined,
+                              color: foodPrimary,
+                              size: 72,
+                            ),
+                          )
+                        : Image.file(_selectedImage!, fit: BoxFit.cover),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _pickImage,
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('写真を選択'),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _selectedImage == null
+                  ? null
+                  : () {
+                      setState(() {
+                        _isDetailStep = true;
+                      });
+                    },
+              child: const Text('次へ'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
+  Widget _buildDetailStep() {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-
           children: [
-            const Text(
-              'お店の思い出を投稿',
-              style: TextStyle(
-                color: foodInk,
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              '写真、場所、カテゴリを入れてシェアできます。',
-              style: TextStyle(color: foodMuted, fontWeight: FontWeight.w600),
-            ),
-
-            const SizedBox(height: 24),
-
-            const FoodSectionTitle('写真を選択'),
-
-            const SizedBox(height: 8),
-
-            GestureDetector(
-              onTap: _pickImage,
-
-              child: Container(
-                height: 240,
-
-                width: double.infinity,
-
-                decoration: BoxDecoration(
-                  border: Border.all(color: foodPrimary, width: 2),
-
-                  borderRadius: BorderRadius.circular(12),
-
-                  color: Colors.white,
+            if (_selectedImage != null)
+              AspectRatio(
+                aspectRatio: 1,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.file(_selectedImage!, fit: BoxFit.cover),
                 ),
-
-                child: _selectedImage == null
-                    ? const Center(
-                        child: Icon(
-                          Icons.add_a_photo,
-                          color: foodPrimary,
-                          size: 50,
-                        ),
-                      )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-
-                        child: Image.file(_selectedImage!, fit: BoxFit.cover),
-                      ),
               ),
-            ),
-
             const SizedBox(height: 24),
-
-            const FoodSectionTitle('場所を入力'),
-
+            const FoodSectionTitle('場所'),
             const SizedBox(height: 8),
-
             TextField(
               controller: _locationController,
-
-              decoration: InputDecoration(
-                hintText: '例: 渋谷区',
-
-                prefixIcon: const Icon(Icons.storefront),
-
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              decoration: const InputDecoration(
+                hintText: '地図で選択した地点',
+                prefixIcon: Icon(Icons.location_on_outlined),
               ),
             ),
-
             const SizedBox(height: 24),
-
-            const FoodSectionTitle('カテゴリを選択'),
-
+            const FoodSectionTitle('カテゴリ'),
             const SizedBox(height: 8),
-
             DropdownButtonFormField<String>(
               initialValue: _selectedCategory,
-
               hint: const Text('カテゴリを選択してください'),
-
-              items: _categories.map((c) {
-                return DropdownMenuItem(value: c, child: Text(c));
-              }).toList(),
-
-              onChanged: (val) {
+              items: _categories
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(category),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
                 setState(() {
-                  _selectedCategory = val;
+                  _selectedCategory = value;
                 });
               },
-
-              decoration: InputDecoration(
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
             ),
-
             const SizedBox(height: 24),
-
-            const FoodSectionTitle('価格帯を選択'),
-
+            const FoodSectionTitle('価格帯'),
             const SizedBox(height: 8),
-
             DropdownButtonFormField<String>(
               initialValue: _selectedPrice,
-
               hint: const Text('1人あたりの価格帯を選択してください'),
-
-              items: _pricetags.map((p) {
-                return DropdownMenuItem(value: p, child: Text(p));
-              }).toList(),
-
-              onChanged: (val) {
+              items: _priceTags
+                  .map(
+                    (price) =>
+                        DropdownMenuItem(value: price, child: Text(price)),
+                  )
+                  .toList(),
+              onChanged: (value) {
                 setState(() {
-                  _selectedPrice = val;
+                  _selectedPrice = value;
                 });
               },
-
-              decoration: InputDecoration(
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
             ),
-
             const SizedBox(height: 24),
-
-            const FoodSectionTitle('タグを選択してコメントを作成'),
-
+            const FoodSectionTitle('タグ'),
             const SizedBox(height: 8),
-
             Wrap(
               spacing: 8,
-
               runSpacing: 8,
-
               children: _tags.map((tag) {
                 final isSelected = _selectedTags.contains(tag);
 
-                return GestureDetector(
-                  onTap: () => _toggleTag(tag),
-
-                  child: Chip(
-                    label: Text(
-                      tag,
-
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : foodPrimary,
-
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-
-                    backgroundColor: isSelected
-                        ? foodPrimary
-                        : const Color(0xFFFFEFE3),
-
-                    side: const BorderSide(color: foodPrimary),
+                return ChoiceChip(
+                  label: Text(tag),
+                  selected: isSelected,
+                  onSelected: (_) => _toggleTag(tag),
+                  selectedColor: foodPrimary,
+                  backgroundColor: const Color(0xFFFFEFE3),
+                  labelStyle: TextStyle(
+                    color: isSelected ? Colors.white : foodPrimary,
+                    fontWeight: FontWeight.w700,
                   ),
+                  side: const BorderSide(color: foodPrimary),
                 );
               }).toList(),
             ),
-
             const SizedBox(height: 12),
-
             TextField(
               controller: _commentController,
-
               maxLines: 3,
-
-              decoration: InputDecoration(
-                hintText: 'タグを押すとここに追加／削除されます',
-
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+              decoration: const InputDecoration(hintText: 'タグを押すとここに追加／削除されます'),
             ),
-
-            const SizedBox(height: 32),
-
-            Center(
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _submitPost,
-
-                icon: const Icon(Icons.send),
-
-                label: const Text('投稿する'),
-
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: foodPrimary,
-
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 12,
-                  ),
-
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-
-                  textStyle: const TextStyle(fontSize: 18),
-                ),
+                onPressed: _isSubmitting ? null : _submitPost,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+                label: Text(_isSubmitting ? '投稿中' : '投稿する'),
               ),
             ),
           ],

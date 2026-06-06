@@ -22,6 +22,8 @@ from datetime import datetime
 
 from pathlib import Path
 
+from typing import Optional
+
 
 app = FastAPI()
 
@@ -43,6 +45,49 @@ app.mount(
     StaticFiles(directory=POSTS_DIR),
     name="Posts"
 )
+
+
+def get_db_connection():
+
+    return psycopg2.connect(
+        dbname="account_manage",
+        user="ryohe1101",
+        password="",
+        host="localhost"
+    )
+
+
+def ensure_posts_table():
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS posts (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            image_path TEXT NOT NULL,
+            category TEXT NOT NULL,
+            price_range TEXT NOT NULL,
+            location TEXT NOT NULL,
+            comment TEXT NOT NULL,
+            latitude DOUBLE PRECISION,
+            longitude DOUBLE PRECISION,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+
+    cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION")
+    cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION")
+    cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
 
 # =========================
 # ⭐ プロフィール画像アップロード
@@ -324,16 +369,24 @@ async def upload_post(
 
     comment: str = Form(...),
 
+    latitude: Optional[float] = Form(None),
+
+    longitude: Optional[float] = Form(None),
+
     file: UploadFile = File(...)
 ):
 
     try:
 
+        ensure_posts_table()
+
         # ⭐ 保存先
-        file_path = f"Posts/{file.filename}"
+        safe_filename = f"{uuid.uuid4()}_{file.filename}"
+
+        file_path = f"Posts/{safe_filename}"
 
         # ⭐ Posts folder に保存
-        with open(file_path, "wb") as buffer:
+        with open(POSTS_DIR / safe_filename, "wb") as buffer:
 
             shutil.copyfileobj(
                 file.file,
@@ -341,12 +394,7 @@ async def upload_post(
             )
 
         # ⭐ DB接続
-        conn = psycopg2.connect(
-            dbname="account_manage",
-            user="ryohe1101",
-            password="",
-            host="localhost"
-        )
+        conn = get_db_connection()
 
         cur = conn.cursor()
 
@@ -360,11 +408,15 @@ async def upload_post(
                 category,
                 price_range,
                 location,
-                comment
+                comment,
+                latitude,
+                longitude
 
             )
 
             VALUES (
+                %s,
+                %s,
                 %s,
                 %s,
                 %s,
@@ -379,7 +431,9 @@ async def upload_post(
                 category,
                 price_range,
                 location,
-                comment
+                comment,
+                latitude,
+                longitude
             )
         )
 

@@ -23,25 +23,22 @@ class InstaHome extends StatefulWidget {
 class _InstaHomeState extends State<InstaHome> {
   int _currentIndex = 0;
 
-  late final List<Widget> _pages;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _pages = [
-      OSMMapPage(email: widget.email),
-
-      TimeLinePage(),
-
-      AccountSearchPage(currentEmail: widget.email),
-
-      ProfilePage(
-        email: widget.email,
-        birthday: widget.birthday,
-        profileImage: widget.profileImage,
-      ),
-    ];
+  Widget _buildPage(int index) {
+    switch (index) {
+      case 0:
+        return OSMMapPage(email: widget.email);
+      case 1:
+        return TimeLinePage();
+      case 2:
+        return AccountSearchPage(currentEmail: widget.email);
+      case 3:
+      default:
+        return ProfilePage(
+          email: widget.email,
+          birthday: widget.birthday,
+          profileImage: widget.profileImage,
+        );
+    }
   }
 
   @override
@@ -49,7 +46,7 @@ class _InstaHomeState extends State<InstaHome> {
     return Scaffold(
       appBar: null,
 
-      body: _pages[_currentIndex],
+      body: _buildPage(_currentIndex),
 
       bottomNavigationBar: NavigationBar(
         backgroundColor: Colors.white,

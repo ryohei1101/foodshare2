@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:foodshare/PostPage.dart';
+import 'package:foodshare/post_model.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 class FoodPin {
@@ -70,6 +74,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
     ),
   ];
   LatLng? _pendingPinPoint;
+  List<FoodPost> _postPins = [];
 
   @override
   void initState() {
@@ -77,6 +82,31 @@ class _OSMMapPageState extends State<OSMMapPage> {
     Future.delayed(Duration.zero, () {
       _mapController.move(fakeCurrentPos, 17);
     });
+    _fetchPostPins();
+  }
+
+  Future<void> _fetchPostPins() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:8000/posts?limit=200'),
+      );
+
+      if (!mounted || response.statusCode != 200) {
+        return;
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final posts = data['posts'] as List<dynamic>? ?? [];
+
+      setState(() {
+        _postPins = posts
+            .map((post) => FoodPost.fromJson(post as Map<String, dynamic>))
+            .where((post) => post.latitude != null && post.longitude != null)
+            .toList();
+      });
+    } catch (e) {
+      debugPrint(e.toString());
+    }
   }
 
   Future<void> _showCreatePinDialog(LatLng point) async {
@@ -282,12 +312,12 @@ class _OSMMapPageState extends State<OSMMapPage> {
     );
   }
 
-  void _openPostPage(LatLng point) {
+  Future<void> _openPostPage(LatLng point) async {
     setState(() {
       _pendingPinPoint = null;
     });
 
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => PostPage(
@@ -296,6 +326,61 @@ class _OSMMapPageState extends State<OSMMapPage> {
           longitude: point.longitude,
         ),
       ),
+    );
+
+    if (mounted) {
+      _fetchPostPins();
+    }
+  }
+
+  void _showPostDetail(FoodPost post) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.restaurant, color: Colors.deepOrange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        post.location,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  post.username,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Chip(label: Text(post.category)),
+                    Chip(label: Text(post.priceRange)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(post.comment),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -359,6 +444,21 @@ class _OSMMapPageState extends State<OSMMapPage> {
                         pin.isMine ? Icons.bookmark : Icons.location_on,
                         color: pin.isMine ? Colors.blue : Colors.redAccent,
                         size: pin.isMine ? 34 : 38,
+                      ),
+                    ),
+                  ),
+                ),
+                ..._postPins.map(
+                  (post) => Marker(
+                    point: LatLng(post.latitude!, post.longitude!),
+                    width: 48,
+                    height: 48,
+                    child: GestureDetector(
+                      onTap: () => _showPostDetail(post),
+                      child: const Icon(
+                        Icons.restaurant,
+                        color: Colors.deepOrange,
+                        size: 36,
                       ),
                     ),
                   ),

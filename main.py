@@ -96,6 +96,145 @@ def ensure_posts_table():
     conn.close()
 
 
+def ensure_follows_table():
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS follows (
+            follower_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            following_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (follower_email, following_email),
+            CHECK (follower_email <> following_email)
+        )
+        """
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+
+def format_japanese_address(data: dict) -> str:
+
+    address = data.get("address", {})
+
+    prefectures = {
+        "JP-01": "北海道",
+        "JP-02": "青森県",
+        "JP-03": "岩手県",
+        "JP-04": "宮城県",
+        "JP-05": "秋田県",
+        "JP-06": "山形県",
+        "JP-07": "福島県",
+        "JP-08": "茨城県",
+        "JP-09": "栃木県",
+        "JP-10": "群馬県",
+        "JP-11": "埼玉県",
+        "JP-12": "千葉県",
+        "JP-13": "東京都",
+        "JP-14": "神奈川県",
+        "JP-15": "新潟県",
+        "JP-16": "富山県",
+        "JP-17": "石川県",
+        "JP-18": "福井県",
+        "JP-19": "山梨県",
+        "JP-20": "長野県",
+        "JP-21": "岐阜県",
+        "JP-22": "静岡県",
+        "JP-23": "愛知県",
+        "JP-24": "三重県",
+        "JP-25": "滋賀県",
+        "JP-26": "京都府",
+        "JP-27": "大阪府",
+        "JP-28": "兵庫県",
+        "JP-29": "奈良県",
+        "JP-30": "和歌山県",
+        "JP-31": "鳥取県",
+        "JP-32": "島根県",
+        "JP-33": "岡山県",
+        "JP-34": "広島県",
+        "JP-35": "山口県",
+        "JP-36": "徳島県",
+        "JP-37": "香川県",
+        "JP-38": "愛媛県",
+        "JP-39": "高知県",
+        "JP-40": "福岡県",
+        "JP-41": "佐賀県",
+        "JP-42": "長崎県",
+        "JP-43": "熊本県",
+        "JP-44": "大分県",
+        "JP-45": "宮崎県",
+        "JP-46": "鹿児島県",
+        "JP-47": "沖縄県",
+    }
+
+    ordered_keys = [
+        "province",
+        "state",
+        "county",
+        "city",
+        "town",
+        "village",
+        "city_district",
+        "borough",
+        "suburb",
+        "neighbourhood",
+        "quarter",
+        "road",
+        "pedestrian",
+        "house_number",
+        "building",
+        "amenity",
+        "shop",
+    ]
+
+    parts = []
+
+    iso_prefecture = address.get("ISO3166-2-lvl4")
+
+    if iso_prefecture in prefectures:
+
+        parts.append(prefectures[iso_prefecture])
+
+    for key in ordered_keys:
+
+        value = address.get(key)
+
+        if value and value not in parts:
+
+            parts.append(value)
+
+    if parts:
+
+        return " ".join(parts)
+
+    display_name = data.get("display_name", "")
+
+    if display_name:
+
+        display_parts = [
+            part.strip()
+            for part in display_name.split(",")
+            if part.strip()
+        ]
+
+        display_parts = [
+            part
+            for part in display_parts
+            if part != "日本" and not part.isdigit()
+        ]
+
+        return " ".join(reversed(display_parts))
+
+    return ""
+
+
 def reverse_geocode(latitude: float, longitude: float) -> str:
 
     params = urllib.parse.urlencode(
@@ -120,7 +259,7 @@ def reverse_geocode(latitude: float, longitude: float) -> str:
 
         data = json.loads(response.read().decode("utf-8"))
 
-    return data.get("display_name", "")
+    return format_japanese_address(data)
 
 
 def post_row_to_dict(row):
@@ -215,6 +354,12 @@ class LoginRequest(BaseModel):
 
     email: str
     password: str
+
+
+class FollowRequest(BaseModel):
+
+    follower_email: str
+    following_email: str
 
 
 @app.post("/login")
@@ -630,4 +775,249 @@ def get_posts(
             post_row_to_dict(row)
             for row in rows
         ]
+    }
+
+
+@app.get("/users")
+def get_users(
+    exclude_email: Optional[str] = None,
+    viewer_email: Optional[str] = None,
+    limit: int = 100
+):
+
+    ensure_follows_table()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    if exclude_email:
+
+        cur.execute(
+            """
+            SELECT
+                u.username,
+                u.email,
+                u.profile_image,
+                EXISTS (
+                    SELECT 1
+                    FROM follows f
+                    WHERE f.follower_email = %s
+                      AND f.following_email = u.email
+                ) AS is_following
+            FROM users u
+            WHERE u.email <> %s
+            ORDER BY username ASC
+            LIMIT %s
+            """,
+            (
+                viewer_email if viewer_email else "",
+                exclude_email,
+                limit
+            )
+        )
+
+    else:
+
+        cur.execute(
+            """
+            SELECT
+                u.username,
+                u.email,
+                u.profile_image,
+                EXISTS (
+                    SELECT 1
+                    FROM follows f
+                    WHERE f.follower_email = %s
+                      AND f.following_email = u.email
+                ) AS is_following
+            FROM users u
+            ORDER BY username ASC
+            LIMIT %s
+            """,
+            (
+                viewer_email if viewer_email else "",
+                limit,
+            )
+        )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "users": [
+            {
+                "username": row[0],
+                "email": row[1],
+                "profile_image": row[2] if row[2] else "",
+                "is_following": row[3],
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.get("/follow-stats")
+def get_follow_stats(email: str):
+
+    ensure_follows_table()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT COUNT(*) FROM follows WHERE following_email = %s",
+        (
+            email,
+        )
+    )
+
+    followers_count = cur.fetchone()[0]
+
+    cur.execute(
+        "SELECT COUNT(*) FROM follows WHERE follower_email = %s",
+        (
+            email,
+        )
+    )
+
+    following_count = cur.fetchone()[0]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "followers_count": followers_count,
+        "following_count": following_count
+    }
+
+
+@app.get("/follow-list")
+def get_follow_list(
+    email: str,
+    list_type: str
+):
+
+    ensure_follows_table()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    if list_type == "followers":
+
+        cur.execute(
+            """
+            SELECT u.username, u.email, u.profile_image
+            FROM follows f
+            JOIN users u ON u.email = f.follower_email
+            WHERE f.following_email = %s
+            ORDER BY f.created_at DESC
+            """,
+            (
+                email,
+            )
+        )
+
+    elif list_type == "following":
+
+        cur.execute(
+            """
+            SELECT u.username, u.email, u.profile_image
+            FROM follows f
+            JOIN users u ON u.email = f.following_email
+            WHERE f.follower_email = %s
+            ORDER BY f.created_at DESC
+            """,
+            (
+                email,
+            )
+        )
+
+    else:
+
+        raise HTTPException(
+            status_code=400,
+            detail="list_type must be followers or following"
+        )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "users": [
+            {
+                "username": row[0],
+                "email": row[1],
+                "profile_image": row[2] if row[2] else "",
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.post("/follow")
+def follow_user(data: FollowRequest):
+
+    ensure_follows_table()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO follows (follower_email, following_email)
+        VALUES (%s, %s)
+        ON CONFLICT DO NOTHING
+        """,
+        (
+            data.follower_email,
+            data.following_email
+        )
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "status": "ok"
+    }
+
+
+@app.post("/unfollow")
+def unfollow_user(data: FollowRequest):
+
+    ensure_follows_table()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM follows
+        WHERE follower_email = %s
+          AND following_email = %s
+        """,
+        (
+            data.follower_email,
+            data.following_email
+        )
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "status": "ok"
     }

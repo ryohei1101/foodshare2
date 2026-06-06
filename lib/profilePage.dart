@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/follow_list_page.dart';
 import 'package:foodshare/post_model.dart';
+import 'package:foodshare/user_model.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
@@ -29,6 +31,8 @@ class _ProfilePageState extends State<ProfilePage>
   // ⭐ 選択画像
   File? selectedImage;
   late Future<List<FoodPost>> _myPostsFuture;
+  late Future<Map<String, int>> _followStatsFuture;
+  late Future<List<FoodUser>> _usersFuture;
 
   // ⭐ 年齢計算
   int? calculateAge(String birthday) {
@@ -99,6 +103,8 @@ class _ProfilePageState extends State<ProfilePage>
 
     _tabController = TabController(length: 2, vsync: this);
     _myPostsFuture = _fetchMyPosts();
+    _followStatsFuture = _fetchFollowStats();
+    _usersFuture = _fetchUsers();
   }
 
   @override
@@ -121,66 +127,98 @@ class _ProfilePageState extends State<ProfilePage>
           children: [
             const SizedBox(height: 10),
 
-            // ⭐ プロフィール画像
-            Stack(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  width: 152,
-                  height: 152,
-
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-
-                    gradient: LinearGradient(
-                      colors: [foodPrimary, const Color(0xFFFFC285)],
-                    ),
-                  ),
-
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
-
-                    child: ClipOval(
-                      child: selectedImage != null
-                          // ⭐ ローカル画像
-                          ? Image.file(selectedImage!, fit: BoxFit.cover)
-                          // ⭐ DB画像
-                          : Image.network(
-                              widget.profileImage.isNotEmpty
-                                  ? "http://10.0.2.2:8000/${widget.profileImage}"
-                                  : "http://10.0.2.2:8000/uploads/cutiestreet.png",
-
-                              fit: BoxFit.cover,
-                            ),
-                    ),
-                  ),
-                ),
-
-                // ⭐ 右下プラスボタン
-                Positioned(
-                  bottom: 5,
-                  right: 5,
-
-                  child: GestureDetector(
-                    onTap: pickImage,
-
-                    child: Container(
-                      width: 45,
-                      height: 45,
+                // ⭐ プロフィール画像
+                Stack(
+                  children: [
+                    Container(
+                      width: 132,
+                      height: 132,
 
                       decoration: BoxDecoration(
-                        color: foodPrimary,
-
                         shape: BoxShape.circle,
 
-                        border: Border.all(color: Colors.white, width: 3),
+                        gradient: LinearGradient(
+                          colors: [foodPrimary, const Color(0xFFFFC285)],
+                        ),
                       ),
 
-                      child: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 28,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+
+                        child: ClipOval(
+                          child: selectedImage != null
+                              // ⭐ ローカル画像
+                              ? Image.file(selectedImage!, fit: BoxFit.cover)
+                              // ⭐ DB画像
+                              : Image.network(
+                                  widget.profileImage.isNotEmpty
+                                      ? "http://10.0.2.2:8000/${widget.profileImage}"
+                                      : "http://10.0.2.2:8000/uploads/cutiestreet.png",
+
+                                  fit: BoxFit.cover,
+                                ),
+                        ),
                       ),
                     ),
+
+                    // ⭐ 右下プラスボタン
+                    Positioned(
+                      bottom: 5,
+                      right: 5,
+
+                      child: GestureDetector(
+                        onTap: pickImage,
+
+                        child: Container(
+                          width: 42,
+                          height: 42,
+
+                          decoration: BoxDecoration(
+                            color: foodPrimary,
+
+                            shape: BoxShape.circle,
+
+                            border: Border.all(color: Colors.white, width: 3),
+                          ),
+
+                          child: const Icon(
+                            Icons.add,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 22),
+                Expanded(
+                  child: FutureBuilder<Map<String, int>>(
+                    future: _followStatsFuture,
+                    builder: (context, snapshot) {
+                      final stats =
+                          snapshot.data ??
+                          const {'followers_count': 0, 'following_count': 0};
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _FollowStatButton(
+                            label: 'フォロワー',
+                            count: stats['followers_count'] ?? 0,
+                            onTap: () => _openFollowList('followers'),
+                          ),
+                          _FollowStatButton(
+                            label: 'フォロー',
+                            count: stats['following_count'] ?? 0,
+                            onTap: () => _openFollowList('following'),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ],
@@ -240,7 +278,7 @@ class _ProfilePageState extends State<ProfilePage>
 
               tabs: const [
                 Tab(text: "投稿"),
-                Tab(text: "検索"),
+                Tab(text: "アカウント"),
               ],
             ),
 
@@ -251,7 +289,11 @@ class _ProfilePageState extends State<ProfilePage>
                 children: [
                   _MyPostsGrid(postsFuture: _myPostsFuture),
 
-                  const Center(child: Text("検索画面")),
+                  _UserDiscoveryList(
+                    currentEmail: widget.email,
+                    usersFuture: _usersFuture,
+                    onFollowChanged: _reloadFollowData,
+                  ),
                 ],
               ),
             ),
@@ -277,6 +319,186 @@ class _ProfilePageState extends State<ProfilePage>
     return posts
         .map((post) => FoodPost.fromJson(post as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<Map<String, int>> _fetchFollowStats() async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/follow-stats?email=${Uri.encodeComponent(widget.email)}',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      return {'followers_count': 0, 'following_count': 0};
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+    return {
+      'followers_count': data['followers_count'] as int? ?? 0,
+      'following_count': data['following_count'] as int? ?? 0,
+    };
+  }
+
+  Future<List<FoodUser>> _fetchUsers() async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/users'
+      '?exclude_email=${Uri.encodeComponent(widget.email)}'
+      '&viewer_email=${Uri.encodeComponent(widget.email)}',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception('アカウントを取得できませんでした');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final users = data['users'] as List<dynamic>? ?? [];
+
+    return users
+        .map((user) => FoodUser.fromJson(user as Map<String, dynamic>))
+        .toList();
+  }
+
+  void _reloadFollowData() {
+    setState(() {
+      _followStatsFuture = _fetchFollowStats();
+      _usersFuture = _fetchUsers();
+    });
+  }
+
+  void _openFollowList(String listType) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            FollowListPage(email: widget.email, listType: listType),
+      ),
+    );
+  }
+}
+
+class _UserDiscoveryList extends StatelessWidget {
+  const _UserDiscoveryList({
+    required this.currentEmail,
+    required this.usersFuture,
+    required this.onFollowChanged,
+  });
+
+  final String currentEmail;
+  final Future<List<FoodUser>> usersFuture;
+  final VoidCallback onFollowChanged;
+
+  Future<void> _toggleFollow(FoodUser user) async {
+    final endpoint = user.isFollowing ? 'unfollow' : 'follow';
+
+    await http.post(
+      Uri.parse('http://10.0.2.2:8000/$endpoint'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'follower_email': currentEmail,
+        'following_email': user.email,
+      }),
+    );
+
+    onFollowChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<FoodUser>>(
+      future: usersFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              snapshot.error.toString(),
+              style: const TextStyle(color: foodMuted),
+            ),
+          );
+        }
+
+        final users = snapshot.data ?? [];
+
+        if (users.isEmpty) {
+          return const Center(
+            child: Text('表示できるアカウントがありません', style: TextStyle(color: foodMuted)),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(4, 10, 4, 20),
+          itemCount: users.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final user = users[index];
+
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundImage: NetworkImage(user.profileImageUrl),
+              ),
+              title: Text(
+                user.username.isEmpty ? user.email : user.username,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: Text(user.email),
+              trailing: OutlinedButton(
+                onPressed: () => _toggleFollow(user),
+                child: Text(user.isFollowing ? '解除' : 'フォロー'),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _FollowStatButton extends StatelessWidget {
+  const _FollowStatButton({
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$count',
+              style: const TextStyle(
+                color: foodInk,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(
+                color: foodMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

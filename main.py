@@ -124,6 +124,40 @@ def ensure_follows_table():
     conn.close()
 
 
+def ensure_groups_tables():
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS groups (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            owner_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS group_members (
+            group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+            user_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            joined_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (group_id, user_email)
+        )
+        """
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+
 def format_japanese_address(data: dict) -> str:
 
     address = data.get("address", {})
@@ -366,6 +400,13 @@ class FollowRequest(BaseModel):
 
     follower_email: str
     following_email: str
+
+
+class CreateGroupRequest(BaseModel):
+
+    owner_email: str
+    name: str
+    member_emails: list[str]
 
 
 @app.post("/login")
@@ -1031,6 +1072,167 @@ def get_follow_list(
             }
             for row in rows
         ]
+    }
+
+
+@app.get("/group-stats")
+def get_group_stats(email: str):
+
+    ensure_groups_tables()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM group_members
+        WHERE user_email = %s
+        """,
+        (
+            email,
+        )
+    )
+
+    groups_count = cur.fetchone()[0]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "groups_count": groups_count
+    }
+
+
+@app.get("/groups")
+def get_groups(email: str):
+
+    ensure_groups_tables()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            g.id,
+            g.name,
+            g.owner_email,
+            g.created_at,
+            COUNT(gm_all.user_email) AS member_count
+        FROM groups g
+        JOIN group_members gm_me
+          ON gm_me.group_id = g.id
+         AND gm_me.user_email = %s
+        LEFT JOIN group_members gm_all
+          ON gm_all.group_id = g.id
+        GROUP BY g.id, g.name, g.owner_email, g.created_at
+        ORDER BY g.created_at DESC, g.id DESC
+        """,
+        (
+            email,
+        )
+    )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "groups": [
+            {
+                "id": row[0],
+                "name": row[1],
+                "owner_email": row[2],
+                "created_at": row[3].isoformat() if row[3] else "",
+                "member_count": row[4],
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.post("/groups")
+def create_group(data: CreateGroupRequest):
+
+    ensure_groups_tables()
+
+    group_name = data.name.strip()
+
+    if not group_name:
+
+        raise HTTPException(
+            status_code=400,
+            detail="group name is required"
+        )
+
+    member_emails = {
+        email.strip()
+        for email in data.member_emails
+        if email.strip()
+    }
+
+    member_emails.add(data.owner_email)
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute(
+            """
+            INSERT INTO groups (name, owner_email)
+            VALUES (%s, %s)
+            RETURNING id, created_at
+            """,
+            (
+                group_name,
+                data.owner_email,
+            )
+        )
+
+        group_id, created_at = cur.fetchone()
+
+        for member_email in member_emails:
+
+            cur.execute(
+                """
+                INSERT INTO group_members (group_id, user_email)
+                VALUES (%s, %s)
+                ON CONFLICT DO NOTHING
+                """,
+                (
+                    group_id,
+                    member_email,
+                )
+            )
+
+        conn.commit()
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "id": group_id,
+        "name": group_name,
+        "owner_email": data.owner_email,
+        "created_at": created_at.isoformat() if created_at else "",
+        "member_count": len(member_emails),
     }
 
 

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/follow_list_page.dart';
+import 'package:foodshare/group_list_page.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -28,6 +29,7 @@ class _ProfilePageState extends State<ProfilePage> {
   File? selectedImage;
   late Future<List<FoodPost>> _myPostsFuture;
   late Future<Map<String, int>> _followStatsFuture;
+  late Future<int> _groupCountFuture;
   String? _selectedLocationFilter;
   String? _selectedPriceFilter;
   String? _selectedCategoryFilter;
@@ -83,6 +85,7 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _myPostsFuture = _fetchMyPosts();
     _followStatsFuture = _fetchFollowStats();
+    _groupCountFuture = _fetchGroupCount();
   }
 
   Future<void> uploadImage(File imageFile) async {
@@ -163,12 +166,28 @@ class _ProfilePageState extends State<ProfilePage> {
     };
   }
 
+  Future<int> _fetchGroupCount() async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/group-stats?email=${Uri.encodeComponent(widget.email)}',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      return 0;
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+    return data['groups_count'] as int? ?? 0;
+  }
+
   Future<void> _refreshProfile() async {
     setState(() {
       _myPostsFuture = _fetchMyPosts();
       _followStatsFuture = _fetchFollowStats();
+      _groupCountFuture = _fetchGroupCount();
     });
-    await Future.wait([_myPostsFuture, _followStatsFuture]);
+    await Future.wait([_myPostsFuture, _followStatsFuture, _groupCountFuture]);
   }
 
   void _openFollowList(String listType) {
@@ -184,6 +203,19 @@ class _ProfilePageState extends State<ProfilePage> {
     ).then((_) {
       setState(() {
         _followStatsFuture = _fetchFollowStats();
+      });
+    });
+  }
+
+  void _openGroupList() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupListPage(email: widget.email),
+      ),
+    ).then((_) {
+      setState(() {
+        _groupCountFuture = _fetchGroupCount();
       });
     });
   }
@@ -378,29 +410,41 @@ class _ProfilePageState extends State<ProfilePage> {
                           Expanded(
                             child: FutureBuilder<Map<String, int>>(
                               future: _followStatsFuture,
-                              builder: (context, snapshot) {
-                                final stats =
-                                    snapshot.data ??
-                                    const {
-                                      'followers_count': 0,
-                                      'following_count': 0,
-                                    };
+                              builder: (context, followSnapshot) {
+                                return FutureBuilder<int>(
+                                  future: _groupCountFuture,
+                                  builder: (context, groupSnapshot) {
+                                    final stats =
+                                        followSnapshot.data ??
+                                        const {
+                                          'followers_count': 0,
+                                          'following_count': 0,
+                                        };
 
-                                return Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    _FollowStatButton(
-                                      label: 'フォロワー',
-                                      count: stats['followers_count'] ?? 0,
-                                      onTap: () => _openFollowList('followers'),
-                                    ),
-                                    _FollowStatButton(
-                                      label: 'フォロー',
-                                      count: stats['following_count'] ?? 0,
-                                      onTap: () => _openFollowList('following'),
-                                    ),
-                                  ],
+                                    return Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        _FollowStatButton(
+                                          label: 'フォロワー',
+                                          count: stats['followers_count'] ?? 0,
+                                          onTap: () =>
+                                              _openFollowList('followers'),
+                                        ),
+                                        _FollowStatButton(
+                                          label: 'フォロー',
+                                          count: stats['following_count'] ?? 0,
+                                          onTap: () =>
+                                              _openFollowList('following'),
+                                        ),
+                                        _FollowStatButton(
+                                          label: 'グループ',
+                                          count: groupSnapshot.data ?? 0,
+                                          onTap: _openGroupList,
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 );
                               },
                             ),

@@ -26,7 +26,7 @@ class _InstaHomeState extends State<InstaHome> {
   List<Widget> get _pages => [
     OSMMapPage(email: widget.email),
 
-    TimeLinePage(),
+    TimeLinePage(email: widget.email),
 
     AccountSearchPage(currentEmail: widget.email),
 

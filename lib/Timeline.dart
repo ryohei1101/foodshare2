@@ -6,7 +6,9 @@ import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
 
 class TimeLinePage extends StatefulWidget {
-  const TimeLinePage({super.key});
+  const TimeLinePage({super.key, required this.email});
+
+  final String email;
 
   @override
   State<TimeLinePage> createState() => _TimeLinePageState();
@@ -15,13 +17,15 @@ class TimeLinePage extends StatefulWidget {
 class _TimeLinePageState extends State<TimeLinePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late Future<List<FoodPost>> _postsFuture;
+  late Future<List<FoodPost>> _recommendedPostsFuture;
+  late Future<List<FoodPost>> _followingPostsFuture;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _postsFuture = _fetchLatestPosts();
+    _recommendedPostsFuture = _fetchLatestPosts();
+    _followingPostsFuture = _fetchFollowingPosts();
   }
 
   @override
@@ -47,11 +51,37 @@ class _TimeLinePageState extends State<TimeLinePage>
         .toList();
   }
 
-  Future<void> _refresh() async {
-    setState(() {
-      _postsFuture = _fetchLatestPosts();
+  Future<List<FoodPost>> _fetchFollowingPosts() async {
+    final uri = Uri.http('10.0.2.2:8000', '/posts', {
+      'following_email': widget.email,
+      'limit': '50',
     });
-    await _postsFuture;
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception('投稿を取得できませんでした');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final posts = data['posts'] as List<dynamic>? ?? [];
+
+    return posts
+        .map((post) => FoodPost.fromJson(post as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> _refreshRecommended() async {
+    setState(() {
+      _recommendedPostsFuture = _fetchLatestPosts();
+    });
+    await _recommendedPostsFuture;
+  }
+
+  Future<void> _refreshFollowing() async {
+    setState(() {
+      _followingPostsFuture = _fetchFollowingPosts();
+    });
+    await _followingPostsFuture;
   }
 
   @override
@@ -77,8 +107,16 @@ class _TimeLinePageState extends State<TimeLinePage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _PostFeed(postsFuture: _postsFuture, onRefresh: _refresh),
-          _PostFeed(postsFuture: _postsFuture, onRefresh: _refresh),
+          _PostFeed(
+            postsFuture: _recommendedPostsFuture,
+            onRefresh: _refreshRecommended,
+            emptyText: 'まだ投稿がありません',
+          ),
+          _PostFeed(
+            postsFuture: _followingPostsFuture,
+            onRefresh: _refreshFollowing,
+            emptyText: 'フォロー中のユーザーの投稿はまだありません',
+          ),
         ],
       ),
     );
@@ -86,10 +124,15 @@ class _TimeLinePageState extends State<TimeLinePage>
 }
 
 class _PostFeed extends StatelessWidget {
-  const _PostFeed({required this.postsFuture, required this.onRefresh});
+  const _PostFeed({
+    required this.postsFuture,
+    required this.onRefresh,
+    required this.emptyText,
+  });
 
   final Future<List<FoodPost>> postsFuture;
   final Future<void> Function() onRefresh;
+  final String emptyText;
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +156,7 @@ class _PostFeed extends StatelessWidget {
         if (posts.isEmpty) {
           return _FeedMessage(
             icon: Icons.restaurant_outlined,
-            text: 'まだ投稿がありません',
+            text: emptyText,
             onRefresh: onRefresh,
           );
         }

@@ -718,6 +718,7 @@ def reverse_geocode_endpoint(
 @app.get("/posts")
 def get_posts(
     user_email: Optional[str] = None,
+    following_email: Optional[str] = None,
     location: Optional[str] = None,
     price_range: Optional[str] = None,
     category: Optional[str] = None,
@@ -726,6 +727,10 @@ def get_posts(
 ):
 
     ensure_posts_table()
+
+    if following_email:
+
+        ensure_follows_table()
 
     conn = get_db_connection()
 
@@ -740,6 +745,21 @@ def get_posts(
         conditions.append("p.user_email = %s")
 
         params.append(user_email)
+
+    if following_email:
+
+        conditions.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM follows f
+                WHERE f.follower_email = %s
+                  AND f.following_email = p.user_email
+            )
+            """
+        )
+
+        params.append(following_email)
 
     if location:
 

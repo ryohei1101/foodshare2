@@ -349,87 +349,102 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(elevation: 0, title: Text(widget.email)),
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        _ProfileImage(
-                          imageFile: selectedImage,
-                          profileImage: widget.profileImage,
-                          onTap: pickImage,
-                        ),
-                        const SizedBox(width: 24),
-                        Expanded(
-                          child: FutureBuilder<Map<String, int>>(
-                            future: _followStatsFuture,
-                            builder: (context, snapshot) {
-                              final stats =
-                                  snapshot.data ??
-                                  const {
-                                    'followers_count': 0,
-                                    'following_count': 0,
-                                  };
+        child: NotificationListener<OverscrollNotification>(
+          onNotification: (notification) {
+            if (_hasActivePostFilters &&
+                notification.metrics.pixels <= 0 &&
+                notification.overscroll < -18) {
+              _clearPostFilters();
+            }
+            return false;
+          },
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _ProfileImage(
+                            imageFile: selectedImage,
+                            profileImage: widget.profileImage,
+                            onTap: pickImage,
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            child: FutureBuilder<Map<String, int>>(
+                              future: _followStatsFuture,
+                              builder: (context, snapshot) {
+                                final stats =
+                                    snapshot.data ??
+                                    const {
+                                      'followers_count': 0,
+                                      'following_count': 0,
+                                    };
 
-                              return Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  _FollowStatButton(
-                                    label: 'フォロワー',
-                                    count: stats['followers_count'] ?? 0,
-                                    onTap: () => _openFollowList('followers'),
-                                  ),
-                                  _FollowStatButton(
-                                    label: 'フォロー',
-                                    count: stats['following_count'] ?? 0,
-                                    onTap: () => _openFollowList('following'),
-                                  ),
-                                ],
-                              );
-                            },
+                                return Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    _FollowStatButton(
+                                      label: 'フォロワー',
+                                      count: stats['followers_count'] ?? 0,
+                                      onTap: () => _openFollowList('followers'),
+                                    ),
+                                    _FollowStatButton(
+                                      label: 'フォロー',
+                                      count: stats['following_count'] ?? 0,
+                                      onTap: () => _openFollowList('following'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    const Divider(height: 1, color: foodLine),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      const Divider(height: 1, color: foodLine),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Text(
+                            '投稿',
+                            style: TextStyle(
+                              color: foodInk,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: '投稿を絞り込む',
+                            onPressed: _showPostFilterSheet,
+                            icon: Icon(
+                              _hasActivePostFilters
+                                  ? Icons.manage_search
+                                  : Icons.search,
+                              color: _hasActivePostFilters ? foodPrimary : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_hasActivePostFilters)
                         const Text(
-                          '投稿',
-                          style: TextStyle(
-                            color: foodInk,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
+                          '上に引っ張ると条件を解除できます',
+                          style: TextStyle(color: foodMuted, fontSize: 12),
                         ),
-                        const Spacer(),
-                        IconButton(
-                          tooltip: '投稿を絞り込む',
-                          onPressed: _showPostFilterSheet,
-                          icon: Icon(
-                            _hasActivePostFilters
-                                ? Icons.manage_search
-                                : Icons.search,
-                            color: _hasActivePostFilters ? foodPrimary : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _MyPostsGrid(postsFuture: _myPostsFuture),
-          ],
+              _MyPostsGrid(postsFuture: _myPostsFuture),
+            ],
+          ),
         ),
       ),
     );

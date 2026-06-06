@@ -169,7 +169,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
     for (final post in _postPins) {
       final lat = post.latitude?.toStringAsFixed(5) ?? '';
       final lon = post.longitude?.toStringAsFixed(5) ?? '';
-      final key = '${post.shopName}|$lat|$lon';
+      final key = '$lat|$lon';
       groups.putIfAbsent(key, () => []).add(post);
     }
 
@@ -178,6 +178,33 @@ class _OSMMapPageState extends State<OSMMapPage> {
     }
 
     return groups.values.toList();
+  }
+
+  String _majorityShopName(List<FoodPost> posts) {
+    final counts = <String, int>{};
+
+    for (final post in posts) {
+      final name = post.shopName.trim();
+      if (name.isEmpty || name == '店名未設定') {
+        continue;
+      }
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+
+    if (counts.isEmpty) {
+      return posts.first.shopName;
+    }
+
+    final entries = counts.entries.toList()
+      ..sort((a, b) {
+        final countCompare = b.value.compareTo(a.value);
+        if (countCompare != 0) {
+          return countCompare;
+        }
+        return a.key.compareTo(b.key);
+      });
+
+    return entries.first.key;
   }
 
   Future<void> _showCreatePinDialog(LatLng point) async {
@@ -383,7 +410,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
     );
   }
 
-  Future<void> _openPostPage(LatLng point) async {
+  Future<void> _openPostPage(LatLng point, {String? initialShopName}) async {
     setState(() {
       _pendingPinPoint = null;
     });
@@ -395,6 +422,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
           email: widget.email,
           latitude: point.latitude,
           longitude: point.longitude,
+          initialShopName: initialShopName,
         ),
       ),
     );
@@ -406,6 +434,8 @@ class _OSMMapPageState extends State<OSMMapPage> {
 
   void _showPostGroupDetail(List<FoodPost> posts) {
     final firstPost = posts.first;
+    final shopName = _majorityShopName(posts);
+    final point = LatLng(firstPost.latitude!, firstPost.longitude!);
 
     showModalBottomSheet<void>(
       context: context,
@@ -432,12 +462,20 @@ class _OSMMapPageState extends State<OSMMapPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              firstPost.shopName,
+                              shopName,
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
+                          ),
+                          IconButton.filledTonal(
+                            tooltip: 'この店舗に投稿',
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _openPostPage(point, initialShopName: shopName);
+                            },
+                            icon: const Icon(Icons.add_a_photo_outlined),
                           ),
                         ],
                       ),

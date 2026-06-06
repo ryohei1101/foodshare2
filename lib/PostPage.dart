@@ -12,11 +12,13 @@ class PostPage extends StatefulWidget {
     required this.email,
     this.latitude,
     this.longitude,
+    this.initialShopName,
   });
 
   final String email;
   final double? latitude;
   final double? longitude;
+  final String? initialShopName;
 
   @override
   State<PostPage> createState() => _PostPageState();
@@ -78,6 +80,10 @@ class _PostPageState extends State<PostPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialShopName != null &&
+        widget.initialShopName!.trim().isNotEmpty) {
+      _shopNameController.text = widget.initialShopName!.trim();
+    }
     _locationController.text = '住所を取得中...';
     _resolveSelectedAddress();
   }

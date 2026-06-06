@@ -929,7 +929,8 @@ def get_follow_stats(email: str):
 @app.get("/follow-list")
 def get_follow_list(
     email: str,
-    list_type: str
+    list_type: str,
+    viewer_email: Optional[str] = None
 ):
 
     ensure_follows_table()
@@ -942,13 +943,23 @@ def get_follow_list(
 
         cur.execute(
             """
-            SELECT u.username, u.email, u.profile_image
+            SELECT
+                u.username,
+                u.email,
+                u.profile_image,
+                EXISTS (
+                    SELECT 1
+                    FROM follows vf
+                    WHERE vf.follower_email = %s
+                      AND vf.following_email = u.email
+                ) AS is_following
             FROM follows f
             JOIN users u ON u.email = f.follower_email
             WHERE f.following_email = %s
             ORDER BY f.created_at DESC
             """,
             (
+                viewer_email if viewer_email else "",
                 email,
             )
         )
@@ -957,13 +968,23 @@ def get_follow_list(
 
         cur.execute(
             """
-            SELECT u.username, u.email, u.profile_image
+            SELECT
+                u.username,
+                u.email,
+                u.profile_image,
+                EXISTS (
+                    SELECT 1
+                    FROM follows vf
+                    WHERE vf.follower_email = %s
+                      AND vf.following_email = u.email
+                ) AS is_following
             FROM follows f
             JOIN users u ON u.email = f.following_email
             WHERE f.follower_email = %s
             ORDER BY f.created_at DESC
             """,
             (
+                viewer_email if viewer_email else "",
                 email,
             )
         )
@@ -986,6 +1007,7 @@ def get_follow_list(
                 "username": row[0],
                 "email": row[1],
                 "profile_image": row[2] if row[2] else "",
+                "is_following": row[3],
             }
             for row in rows
         ]

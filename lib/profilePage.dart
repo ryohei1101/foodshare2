@@ -6,6 +6,7 @@ import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/follow_list_page.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:foodshare/user_model.dart';
+import 'package:foodshare/user_profile_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
@@ -389,8 +390,11 @@ class _ProfilePageState extends State<ProfilePage>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            FollowListPage(email: widget.email, listType: listType),
+        builder: (context) => FollowListPage(
+          email: widget.email,
+          currentEmail: widget.email,
+          listType: listType,
+        ),
       ),
     );
   }
@@ -468,6 +472,17 @@ class _UserDiscoveryList extends StatelessWidget {
                 onPressed: () => _toggleFollow(user),
                 child: Text(user.isFollowing ? '解除' : 'フォロー'),
               ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UserProfilePage(
+                      targetUser: user,
+                      currentEmail: currentEmail,
+                    ),
+                  ),
+                ).then((_) => onFollowChanged());
+              },
             );
           },
         );

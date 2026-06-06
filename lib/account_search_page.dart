@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/user_model.dart';
+import 'package:foodshare/user_profile_page.dart';
 import 'package:http/http.dart' as http;
 
 class AccountSearchPage extends StatefulWidget {
@@ -189,6 +190,17 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
                         return _AccountSearchRow(
                           user: user,
                           onFollowPressed: () => _toggleFollow(user),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UserProfilePage(
+                                  targetUser: user,
+                                  currentEmail: widget.currentEmail,
+                                ),
+                              ),
+                            ).then((_) => _search());
+                          },
                         );
                       },
                     );
@@ -204,71 +216,79 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
 }
 
 class _AccountSearchRow extends StatelessWidget {
-  const _AccountSearchRow({required this.user, required this.onFollowPressed});
+  const _AccountSearchRow({
+    required this.user,
+    required this.onFollowPressed,
+    required this.onPressed,
+  });
 
   final FoodUser user;
   final VoidCallback onFollowPressed;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final displayName = user.username.isEmpty ? user.email : user.username;
 
-    return SizedBox(
-      height: 76,
-      child: Row(
-        children: [
-          ClipOval(
-            child: Image.network(
-              user.profileImageUrl,
-              width: 46,
-              height: 46,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) {
-                return Container(
-                  width: 46,
-                  height: 46,
-                  color: foodLine,
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.person, color: foodMuted),
-                );
-              },
+    return InkWell(
+      onTap: onPressed,
+      child: SizedBox(
+        height: 76,
+        child: Row(
+          children: [
+            ClipOval(
+              child: Image.network(
+                user.profileImageUrl,
+                width: 46,
+                height: 46,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) {
+                  return Container(
+                    width: 46,
+                    height: 46,
+                    color: foodLine,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.person, color: foodMuted),
+                  );
+                },
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: foodInk,
-                    fontWeight: FontWeight.w800,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: foodInk,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  user.email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: foodMuted, fontSize: 12),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    user.email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: foodMuted, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 96,
-            height: 38,
-            child: OutlinedButton(
-              onPressed: onFollowPressed,
-              child: Text(user.isFollowing ? '解除' : 'フォロー'),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 96,
+              height: 38,
+              child: OutlinedButton(
+                onPressed: onFollowPressed,
+                child: Text(user.isFollowing ? '解除' : 'フォロー'),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

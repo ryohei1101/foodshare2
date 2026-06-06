@@ -28,6 +28,55 @@ class _ProfilePageState extends State<ProfilePage> {
   File? selectedImage;
   late Future<List<FoodPost>> _myPostsFuture;
   late Future<Map<String, int>> _followStatsFuture;
+  String? _selectedLocationFilter;
+  String? _selectedPriceFilter;
+  String? _selectedCategoryFilter;
+  String? _selectedTagFilter;
+
+  final List<String> _priceFilters = const [
+    "~2000円",
+    "2000~3000円",
+    "3000円~4000円",
+    "4000~5000円",
+    "5000~6000円",
+    "6000~7000円",
+    "7000~8000円",
+    "8000~9000円",
+    "9000円~10000円",
+    "10000~15000円",
+    "15000~20000円",
+    "20000~30000円",
+    "30000円以上",
+  ];
+
+  final List<String> _categoryFilters = const [
+    '和食',
+    '洋食',
+    '中華',
+    'スイーツ',
+    'ドリンク',
+    'その他',
+  ];
+
+  final List<String> _tagFilters = const [
+    "#一人で",
+    "#デート",
+    "#友達と",
+    "#家族と",
+    "#にぎやか",
+    "#落ち着いている",
+    "#男性多め",
+    "#女性多め",
+    "#個室",
+    "#ランチ",
+    "#ディナー",
+  ];
+
+  bool get _hasActivePostFilters =>
+      _selectedLocationFilter != null ||
+      _selectedPriceFilter != null ||
+      _selectedCategoryFilter != null ||
+      _selectedTagFilter != null;
 
   @override
   void initState() {
@@ -74,9 +123,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<List<FoodPost>> _fetchMyPosts() async {
-    final uri = Uri.parse(
-      'http://10.0.2.2:8000/posts?user_email=${Uri.encodeComponent(widget.email)}&limit=100',
-    );
+    final uri = Uri.http('10.0.2.2:8000', '/posts', {
+      'user_email': widget.email,
+      'limit': '100',
+      if (_selectedLocationFilter != null) 'location': _selectedLocationFilter!,
+      if (_selectedPriceFilter != null) 'price_range': _selectedPriceFilter!,
+      if (_selectedCategoryFilter != null) 'category': _selectedCategoryFilter!,
+      if (_selectedTagFilter != null) 'tag': _selectedTagFilter!,
+    });
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
@@ -132,6 +186,161 @@ class _ProfilePageState extends State<ProfilePage> {
         _followStatsFuture = _fetchFollowStats();
       });
     });
+  }
+
+  void _reloadPosts() {
+    setState(() {
+      _myPostsFuture = _fetchMyPosts();
+    });
+  }
+
+  void _clearPostFilters() {
+    if (!_hasActivePostFilters) {
+      return;
+    }
+
+    setState(() {
+      _selectedLocationFilter = null;
+      _selectedPriceFilter = null;
+      _selectedCategoryFilter = null;
+      _selectedTagFilter = null;
+      _myPostsFuture = _fetchMyPosts();
+    });
+  }
+
+  void _showPostFilterSheet() {
+    final locationController = TextEditingController(
+      text: _selectedLocationFilter ?? '',
+    );
+    String? price = _selectedPriceFilter;
+    String? category = _selectedCategoryFilter;
+    String? tag = _selectedTagFilter;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 24,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        '投稿を絞り込む',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      TextField(
+                        controller: locationController,
+                        decoration: const InputDecoration(
+                          labelText: '場所',
+                          hintText: '例: 港区、渋谷区',
+                          prefixIcon: Icon(Icons.place_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: price,
+                        hint: const Text('価格帯'),
+                        items: _priceFilters
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setSheetState(() {
+                            price = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: category,
+                        hint: const Text('カテゴリ'),
+                        items: _categoryFilters
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setSheetState(() {
+                            category = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: tag,
+                        hint: const Text('タグ'),
+                        items: _tagFilters
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setSheetState(() {
+                            tag = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedLocationFilter =
+                                locationController.text.trim().isEmpty
+                                ? null
+                                : locationController.text.trim();
+                            _selectedPriceFilter = price;
+                            _selectedCategoryFilter = category;
+                            _selectedTagFilter = tag;
+                          });
+                          Navigator.pop(context);
+                          _reloadPosts();
+                        },
+                        icon: const Icon(Icons.search),
+                        label: const Text('検索する'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _clearPostFilters();
+                        },
+                        child: const Text('条件をクリア'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -191,6 +400,30 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     const SizedBox(height: 18),
                     const Divider(height: 1, color: foodLine),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Text(
+                          '投稿',
+                          style: TextStyle(
+                            color: foodInk,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: '投稿を絞り込む',
+                          onPressed: _showPostFilterSheet,
+                          icon: Icon(
+                            _hasActivePostFilters
+                                ? Icons.manage_search
+                                : Icons.search,
+                            color: _hasActivePostFilters ? foodPrimary : null,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

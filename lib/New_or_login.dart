@@ -8,64 +8,84 @@ class NewOrLoginPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const dark = Color(0xFF15110E);
+    const gold = Color(0xFFC7A15B);
+    const ivory = Color(0xFFFFFCF7);
+
     return Scaffold(
+      backgroundColor: dark,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 48,
+                  minHeight: constraints.maxHeight - 50,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: Image.asset(
-                              'assets/way1.png',
-                              height: 150,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: gold, width: 1.2),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: Image.asset(
-                              'assets/way2.png',
-                              height: 150,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                        child: const Icon(
+                          Icons.restaurant_menu,
+                          color: gold,
+                          size: 20,
                         ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 28),
+                    SizedBox(height: constraints.maxHeight < 720 ? 52 : 96),
                     const Text(
                       'Food Share',
                       style: TextStyle(
-                        color: foodInk,
-                        fontSize: 38,
+                        color: ivory,
+                        fontSize: 42,
                         fontWeight: FontWeight.w900,
+                        height: 1.05,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
                     const Text(
-                      '好きな店と食の好みでつながる',
+                      '記憶に残る一皿と、信頼できる人の店選びをひとつに。',
                       style: TextStyle(
-                        color: foodMuted,
-                        fontSize: 16,
+                        color: Color(0xFFD8CEC2),
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        height: 1.55,
                       ),
                     ),
-                    SizedBox(height: constraints.maxHeight < 720 ? 28 : 72),
-                    FoodCard(
+                    const SizedBox(height: 34),
+                    Container(
+                      height: 1,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [gold, Color(0x0015110E)],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: constraints.maxHeight < 720 ? 56 : 118),
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: ivory,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE8DED5)),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x33000000),
+                            blurRadius: 28,
+                            offset: Offset(0, 18),
+                          ),
+                        ],
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -78,6 +98,11 @@ class NewOrLoginPage extends StatelessWidget {
                                 ),
                               );
                             },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: dark,
+                              foregroundColor: ivory,
+                              minimumSize: const Size.fromHeight(52),
+                            ),
                             icon: const Icon(Icons.person_add_alt_1),
                             label: const Text('新規作成'),
                           ),
@@ -91,19 +116,25 @@ class NewOrLoginPage extends StatelessWidget {
                                 ),
                               );
                             },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: dark,
+                              minimumSize: const Size.fromHeight(52),
+                              side: const BorderSide(color: foodLine),
+                            ),
                             icon: const Icon(Icons.login),
                             label: const Text('ログイン'),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Image.asset(
-                        'assets/way3.png',
-                        height: 190,
-                        fit: BoxFit.cover,
+                    const SizedBox(height: 22),
+                    const Text(
+                      'Curated by people, not noise.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF9B8D7C),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],

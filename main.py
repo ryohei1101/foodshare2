@@ -409,6 +409,11 @@ class CreateGroupRequest(BaseModel):
     member_emails: list[str]
 
 
+class AddGroupMembersRequest(BaseModel):
+
+    member_emails: list[str]
+
+
 @app.post("/login")
 def login(data: LoginRequest):
 
@@ -1233,6 +1238,142 @@ def create_group(data: CreateGroupRequest):
         "owner_email": data.owner_email,
         "created_at": created_at.isoformat() if created_at else "",
         "member_count": len(member_emails),
+    }
+
+
+@app.get("/groups/{group_id}/members")
+def get_group_members(
+    group_id: int,
+    viewer_email: Optional[str] = None
+):
+
+    ensure_groups_tables()
+    ensure_follows_table()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            u.username,
+            u.email,
+            u.profile_image,
+            EXISTS (
+                SELECT 1
+                FROM follows f
+                WHERE f.follower_email = %s
+                  AND f.following_email = u.email
+            ) AS is_following
+        FROM group_members gm
+        JOIN users u ON u.email = gm.user_email
+        WHERE gm.group_id = %s
+        ORDER BY gm.joined_at ASC, u.username ASC
+        """,
+        (
+            viewer_email if viewer_email else "",
+            group_id,
+        )
+    )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "users": [
+            {
+                "username": row[0],
+                "email": row[1],
+                "profile_image": row[2] if row[2] else "",
+                "is_following": row[3],
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.post("/groups/{group_id}/members")
+def add_group_members(
+    group_id: int,
+    data: AddGroupMembersRequest
+):
+
+    ensure_groups_tables()
+
+    member_emails = {
+        email.strip()
+        for email in data.member_emails
+        if email.strip()
+    }
+
+    if not member_emails:
+
+        raise HTTPException(
+            status_code=400,
+            detail="member_emails is required"
+        )
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute(
+            "SELECT id FROM groups WHERE id = %s",
+            (
+                group_id,
+            )
+        )
+
+        if cur.fetchone() is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail="group not found"
+            )
+
+        for member_email in member_emails:
+
+            cur.execute(
+                """
+                INSERT INTO group_members (group_id, user_email)
+                VALUES (%s, %s)
+                ON CONFLICT DO NOTHING
+                """,
+                (
+                    group_id,
+                    member_email,
+                )
+            )
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "status": "ok"
     }
 
 

@@ -117,8 +117,346 @@ class _GroupListPageState extends State<GroupListPage> {
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 subtitle: Text('${group.memberCount}人のメンバー'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => GroupDetailPage(
+                        group: group,
+                        currentEmail: widget.email,
+                      ),
+                    ),
+                  );
+                  _reloadGroups();
+                },
               );
             },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class GroupDetailPage extends StatefulWidget {
+  const GroupDetailPage({
+    super.key,
+    required this.group,
+    required this.currentEmail,
+  });
+
+  final FoodGroup group;
+  final String currentEmail;
+
+  @override
+  State<GroupDetailPage> createState() => _GroupDetailPageState();
+}
+
+class _GroupDetailPageState extends State<GroupDetailPage> {
+  late Future<List<FoodUser>> _membersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _membersFuture = _fetchMembers();
+  }
+
+  Future<List<FoodUser>> _fetchMembers() async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/groups/${widget.group.id}/members'
+      '?viewer_email=${Uri.encodeComponent(widget.currentEmail)}',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception('メンバーを取得できませんでした');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final users = data['users'] as List<dynamic>? ?? [];
+
+    return users
+        .map((user) => FoodUser.fromJson(user as Map<String, dynamic>))
+        .toList();
+  }
+
+  void _reloadMembers() {
+    setState(() {
+      _membersFuture = _fetchMembers();
+    });
+  }
+
+  Future<void> _openAddMembersPage() async {
+    final added = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddGroupMembersPage(
+          group: widget.group,
+          currentEmail: widget.currentEmail,
+        ),
+      ),
+    );
+
+    if (added == true) {
+      _reloadMembers();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.group.name),
+        actions: [
+          IconButton(
+            tooltip: 'メンバー追加',
+            onPressed: _openAddMembersPage,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+      body: FutureBuilder<List<FoodUser>>(
+        future: _membersFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                snapshot.error.toString(),
+                style: const TextStyle(color: foodMuted),
+              ),
+            );
+          }
+
+          final members = snapshot.data ?? [];
+
+          if (members.isEmpty) {
+            return const Center(
+              child: Text('メンバーがいません', style: TextStyle(color: foodMuted)),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            itemCount: members.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final user = members[index];
+
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                leading: CircleAvatar(
+                  backgroundImage: NetworkImage(user.profileImageUrl),
+                ),
+                title: Text(
+                  user.username.isEmpty ? user.email : user.username,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text(user.email),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class AddGroupMembersPage extends StatefulWidget {
+  const AddGroupMembersPage({
+    super.key,
+    required this.group,
+    required this.currentEmail,
+  });
+
+  final FoodGroup group;
+  final String currentEmail;
+
+  @override
+  State<AddGroupMembersPage> createState() => _AddGroupMembersPageState();
+}
+
+class _AddGroupMembersPageState extends State<AddGroupMembersPage> {
+  final Set<String> _selectedEmails = {};
+  late Future<List<FoodUser>> _followingFuture;
+  late Future<Set<String>> _memberEmailsFuture;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _followingFuture = _fetchFollowing();
+    _memberEmailsFuture = _fetchMemberEmails();
+  }
+
+  Future<List<FoodUser>> _fetchFollowing() async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/follow-list'
+      '?email=${Uri.encodeComponent(widget.currentEmail)}'
+      '&list_type=following'
+      '&viewer_email=${Uri.encodeComponent(widget.currentEmail)}',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception('フォロー中のアカウントを取得できませんでした');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final users = data['users'] as List<dynamic>? ?? [];
+
+    return users
+        .map((user) => FoodUser.fromJson(user as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Set<String>> _fetchMemberEmails() async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/groups/${widget.group.id}/members'
+      '?viewer_email=${Uri.encodeComponent(widget.currentEmail)}',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      return {};
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final users = data['users'] as List<dynamic>? ?? [];
+
+    return users
+        .map((user) => FoodUser.fromJson(user as Map<String, dynamic>).email)
+        .toSet();
+  }
+
+  Future<void> _addMembers() async {
+    if (_selectedEmails.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('追加するメンバーを選択してください')));
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2:8000/groups/${widget.group.id}/members'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'member_emails': _selectedEmails.toList()}),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSubmitting = false;
+    });
+
+    if (response.statusCode != 200) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('メンバーを追加できませんでした')));
+      return;
+    }
+
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('メンバー追加')),
+      body: FutureBuilder<List<Object>>(
+        future: Future.wait([_followingFuture, _memberEmailsFuture]),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                snapshot.error.toString(),
+                style: const TextStyle(color: foodMuted),
+              ),
+            );
+          }
+
+          final users = snapshot.data?[0] as List<FoodUser>? ?? [];
+          final memberEmails = snapshot.data?[1] as Set<String>? ?? {};
+          final candidates = users
+              .where((user) => !memberEmails.contains(user.email))
+              .toList();
+
+          if (candidates.isEmpty) {
+            return const Center(
+              child: Text(
+                '追加できるフォロー中アカウントがありません',
+                style: TextStyle(color: foodMuted),
+              ),
+            );
+          }
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      '${_selectedEmails.length}人選択中',
+                      style: const TextStyle(
+                        color: foodMuted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: _isSubmitting ? null : _addMembers,
+                      child: Text(_isSubmitting ? '追加中' : '追加'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                  itemCount: candidates.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final user = candidates[index];
+                    final isSelected = _selectedEmails.contains(user.email);
+
+                    return CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: isSelected,
+                      onChanged: (_) {
+                        setState(() {
+                          if (isSelected) {
+                            _selectedEmails.remove(user.email);
+                          } else {
+                            _selectedEmails.add(user.email);
+                          }
+                        });
+                      },
+                      secondary: CircleAvatar(
+                        backgroundImage: NetworkImage(user.profileImageUrl),
+                      ),
+                      title: Text(
+                        user.username.isEmpty ? user.email : user.username,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(user.email),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),

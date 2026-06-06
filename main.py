@@ -75,10 +75,12 @@ def ensure_posts_table():
             id SERIAL PRIMARY KEY,
             user_email TEXT NOT NULL,
             image_path TEXT NOT NULL,
+            shop_name TEXT,
             category TEXT NOT NULL,
             price_range TEXT NOT NULL,
             location TEXT NOT NULL,
             comment TEXT NOT NULL,
+            tags TEXT,
             latitude DOUBLE PRECISION,
             longitude DOUBLE PRECISION,
             created_at TIMESTAMP DEFAULT NOW()
@@ -89,6 +91,8 @@ def ensure_posts_table():
     cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION")
     cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION")
     cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
+    cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS shop_name TEXT")
+    cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS tags TEXT")
 
     conn.commit()
 
@@ -268,14 +272,16 @@ def post_row_to_dict(row):
         "id": row[0],
         "user_email": row[1],
         "image_path": row[2],
-        "category": row[3],
-        "price_range": row[4],
-        "location": row[5],
-        "comment": row[6],
-        "latitude": row[7],
-        "longitude": row[8],
-        "created_at": row[9].isoformat() if row[9] else "",
-        "username": row[10] if len(row) > 10 and row[10] else row[1],
+        "shop_name": row[3] if row[3] else "店名未設定",
+        "category": row[4],
+        "price_range": row[5],
+        "location": row[6],
+        "comment": row[7],
+        "tags": row[8] if row[8] else "",
+        "latitude": row[9],
+        "longitude": row[10],
+        "created_at": row[11].isoformat() if row[11] else "",
+        "username": row[12] if len(row) > 12 and row[12] else row[1],
     }
 
 # =========================
@@ -556,6 +562,8 @@ async def upload_post(
 
     user_email: str = Form(...),
 
+    shop_name: str = Form(""),
+
     category: str = Form(...),
 
     price_range: str = Form(...),
@@ -563,6 +571,8 @@ async def upload_post(
     location: str = Form(...),
 
     comment: str = Form(...),
+
+    tags: str = Form(""),
 
     latitude: Optional[float] = Form(None),
 
@@ -618,10 +628,12 @@ async def upload_post(
 
                 user_email,
                 image_path,
+                shop_name,
                 category,
                 price_range,
                 location,
                 comment,
+                tags,
                 latitude,
                 longitude
 
@@ -635,16 +647,20 @@ async def upload_post(
                 %s,
                 %s,
                 %s,
+                %s,
+                %s,
                 %s
             )
             """,
             (
                 user_email,
                 file_path,
+                shop_name.strip() if shop_name.strip() else "店名未設定",
                 category,
                 price_range,
                 display_location,
                 comment,
+                tags,
                 latitude,
                 longitude
             )
@@ -702,6 +718,10 @@ def reverse_geocode_endpoint(
 @app.get("/posts")
 def get_posts(
     user_email: Optional[str] = None,
+    location: Optional[str] = None,
+    price_range: Optional[str] = None,
+    category: Optional[str] = None,
+    tag: Optional[str] = None,
     limit: int = 50
 ):
 
@@ -711,59 +731,72 @@ def get_posts(
 
     cur = conn.cursor()
 
+    conditions = []
+
+    params = []
+
     if user_email:
 
-        cur.execute(
-            """
-            SELECT
-                p.id,
-                p.user_email,
-                p.image_path,
-                p.category,
-                p.price_range,
-                p.location,
-                p.comment,
-                p.latitude,
-                p.longitude,
-                p.created_at,
-                u.username
-            FROM posts p
-            LEFT JOIN users u ON u.email = p.user_email
-            WHERE p.user_email = %s
-            ORDER BY p.created_at DESC, p.id DESC
-            LIMIT %s
-            """,
-            (
-                user_email,
-                limit
-            )
-        )
+        conditions.append("p.user_email = %s")
 
-    else:
+        params.append(user_email)
 
-        cur.execute(
-            """
-            SELECT
-                p.id,
-                p.user_email,
-                p.image_path,
-                p.category,
-                p.price_range,
-                p.location,
-                p.comment,
-                p.latitude,
-                p.longitude,
-                p.created_at,
-                u.username
-            FROM posts p
-            LEFT JOIN users u ON u.email = p.user_email
-            ORDER BY p.created_at DESC, p.id DESC
-            LIMIT %s
-            """,
-            (
-                limit,
-            )
-        )
+    if location:
+
+        conditions.append("p.location ILIKE %s")
+
+        params.append(f"%{location}%")
+
+    if price_range:
+
+        conditions.append("p.price_range = %s")
+
+        params.append(price_range)
+
+    if category:
+
+        conditions.append("p.category = %s")
+
+        params.append(category)
+
+    if tag:
+
+        conditions.append("(p.tags ILIKE %s OR p.comment ILIKE %s)")
+
+        params.extend([f"%{tag}%", f"%{tag}%"])
+
+    where_clause = ""
+
+    if conditions:
+
+        where_clause = "WHERE " + " AND ".join(conditions)
+
+    params.append(limit)
+
+    cur.execute(
+        f"""
+        SELECT
+            p.id,
+            p.user_email,
+            p.image_path,
+            p.shop_name,
+            p.category,
+            p.price_range,
+            p.location,
+            p.comment,
+            p.tags,
+            p.latitude,
+            p.longitude,
+            p.created_at,
+            u.username
+        FROM posts p
+        LEFT JOIN users u ON u.email = p.user_email
+        {where_clause}
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT %s
+        """,
+        tuple(params)
+    )
 
     rows = cur.fetchall()
 
@@ -782,6 +815,7 @@ def get_posts(
 def get_users(
     exclude_email: Optional[str] = None,
     viewer_email: Optional[str] = None,
+    query: Optional[str] = None,
     limit: int = 100
 ):
 
@@ -791,55 +825,49 @@ def get_users(
 
     cur = conn.cursor()
 
+    conditions = []
+
+    params = [viewer_email if viewer_email else ""]
+
     if exclude_email:
 
-        cur.execute(
-            """
-            SELECT
-                u.username,
-                u.email,
-                u.profile_image,
-                EXISTS (
-                    SELECT 1
-                    FROM follows f
-                    WHERE f.follower_email = %s
-                      AND f.following_email = u.email
-                ) AS is_following
-            FROM users u
-            WHERE u.email <> %s
-            ORDER BY username ASC
-            LIMIT %s
-            """,
-            (
-                viewer_email if viewer_email else "",
-                exclude_email,
-                limit
-            )
-        )
+        conditions.append("u.email <> %s")
 
-    else:
+        params.append(exclude_email)
 
-        cur.execute(
-            """
-            SELECT
-                u.username,
-                u.email,
-                u.profile_image,
-                EXISTS (
-                    SELECT 1
-                    FROM follows f
-                    WHERE f.follower_email = %s
-                      AND f.following_email = u.email
-                ) AS is_following
-            FROM users u
-            ORDER BY username ASC
-            LIMIT %s
-            """,
-            (
-                viewer_email if viewer_email else "",
-                limit,
-            )
-        )
+    if query:
+
+        conditions.append("(u.username ILIKE %s OR u.email ILIKE %s)")
+
+        params.extend([f"%{query}%", f"%{query}%"])
+
+    where_clause = ""
+
+    if conditions:
+
+        where_clause = "WHERE " + " AND ".join(conditions)
+
+    params.append(limit)
+
+    cur.execute(
+        f"""
+        SELECT
+            u.username,
+            u.email,
+            u.profile_image,
+            EXISTS (
+                SELECT 1
+                FROM follows f
+                WHERE f.follower_email = %s
+                  AND f.following_email = u.email
+            ) AS is_following
+        FROM users u
+        {where_clause}
+        ORDER BY username ASC
+        LIMIT %s
+        """,
+        tuple(params)
+    )
 
     rows = cur.fetchall()
 

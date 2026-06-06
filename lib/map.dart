@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:foodshare/PostPage.dart';
+import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -75,6 +76,49 @@ class _OSMMapPageState extends State<OSMMapPage> {
   ];
   LatLng? _pendingPinPoint;
   List<FoodPost> _postPins = [];
+  String? _selectedLocationFilter;
+  String? _selectedPriceFilter;
+  String? _selectedCategoryFilter;
+  String? _selectedTagFilter;
+
+  final List<String> _priceFilters = const [
+    "~2000円",
+    "2000~3000円",
+    "3000円~4000円",
+    "4000~5000円",
+    "5000~6000円",
+    "6000~7000円",
+    "7000~8000円",
+    "8000~9000円",
+    "9000円~10000円",
+    "10000~15000円",
+    "15000~20000円",
+    "20000~30000円",
+    "30000円以上",
+  ];
+
+  final List<String> _categoryFilters = const [
+    '和食',
+    '洋食',
+    '中華',
+    'スイーツ',
+    'ドリンク',
+    'その他',
+  ];
+
+  final List<String> _tagFilters = const [
+    "#一人で",
+    "#デート",
+    "#友達と",
+    "#家族と",
+    "#にぎやか",
+    "#落ち着いている",
+    "#男性多め",
+    "#女性多め",
+    "#個室",
+    "#ランチ",
+    "#ディナー",
+  ];
 
   @override
   void initState() {
@@ -87,8 +131,18 @@ class _OSMMapPageState extends State<OSMMapPage> {
 
   Future<void> _fetchPostPins() async {
     try {
+      final query = <String, String>{
+        'limit': '200',
+        if (_selectedLocationFilter != null &&
+            _selectedLocationFilter!.trim().isNotEmpty)
+          'location': _selectedLocationFilter!.trim(),
+        if (_selectedPriceFilter != null) 'price_range': _selectedPriceFilter!,
+        if (_selectedCategoryFilter != null)
+          'category': _selectedCategoryFilter!,
+        if (_selectedTagFilter != null) 'tag': _selectedTagFilter!,
+      };
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/posts?limit=200'),
+        Uri.http('10.0.2.2:8000', '/posts', query),
       );
 
       if (!mounted || response.statusCode != 200) {
@@ -107,6 +161,23 @@ class _OSMMapPageState extends State<OSMMapPage> {
     } catch (e) {
       debugPrint(e.toString());
     }
+  }
+
+  List<List<FoodPost>> get _postGroups {
+    final groups = <String, List<FoodPost>>{};
+
+    for (final post in _postPins) {
+      final lat = post.latitude?.toStringAsFixed(5) ?? '';
+      final lon = post.longitude?.toStringAsFixed(5) ?? '';
+      final key = '${post.shopName}|$lat|$lon';
+      groups.putIfAbsent(key, () => []).add(post);
+    }
+
+    for (final posts in groups.values) {
+      posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+
+    return groups.values.toList();
   }
 
   Future<void> _showCreatePinDialog(LatLng point) async {
@@ -333,52 +404,268 @@ class _OSMMapPageState extends State<OSMMapPage> {
     }
   }
 
-  void _showPostDetail(FoodPost post) {
+  void _showPostGroupDetail(List<FoodPost> posts) {
+    final firstPost = posts.first;
+
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.72,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.restaurant, color: Colors.deepOrange),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        post.location,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.restaurant,
+                            color: Colors.deepOrange,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              firstPost.shopName,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      Text(
+                        firstPost.location,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${posts.length}件の投稿',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  post.username,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+                    itemCount: posts.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      final post = posts[index];
+
+                      return FoodCard(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ListTile(
+                              leading: const CircleAvatar(
+                                backgroundColor: Color(0xFFFFEFE3),
+                                child: Icon(
+                                  Icons.person,
+                                  color: Colors.deepOrange,
+                                ),
+                              ),
+                              title: Text(
+                                post.username,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              subtitle: Text(post.createdAt),
+                            ),
+                            AspectRatio(
+                              aspectRatio: 1.05,
+                              child: Image.network(
+                                post.imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) {
+                                  return const Center(
+                                    child: Icon(Icons.broken_image_outlined),
+                                  );
+                                },
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      Chip(label: Text(post.category)),
+                                      Chip(label: Text(post.priceRange)),
+                                      if (post.tags.isNotEmpty)
+                                        Chip(label: Text(post.tags)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(post.comment),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Chip(label: Text(post.category)),
-                    Chip(label: Text(post.priceRange)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(post.comment),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+
+  void _showFilterSheet() {
+    final locationController = TextEditingController(
+      text: _selectedLocationFilter ?? '',
+    );
+    String? price = _selectedPriceFilter;
+    String? category = _selectedCategoryFilter;
+    String? tag = _selectedTagFilter;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 24,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        '条件で探す',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      TextField(
+                        controller: locationController,
+                        decoration: const InputDecoration(
+                          labelText: '場所',
+                          hintText: '例: 港区、渋谷区',
+                          prefixIcon: Icon(Icons.place_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: price,
+                        hint: const Text('価格帯'),
+                        items: _priceFilters
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setSheetState(() {
+                            price = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: category,
+                        hint: const Text('カテゴリ'),
+                        items: _categoryFilters
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setSheetState(() {
+                            category = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: tag,
+                        hint: const Text('タグ'),
+                        items: _tagFilters
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setSheetState(() {
+                            tag = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedLocationFilter =
+                                locationController.text.trim().isEmpty
+                                ? null
+                                : locationController.text.trim();
+                            _selectedPriceFilter = price;
+                            _selectedCategoryFilter = category;
+                            _selectedTagFilter = tag;
+                          });
+                          Navigator.pop(context);
+                          _fetchPostPins();
+                        },
+                        icon: const Icon(Icons.search),
+                        label: const Text('検索する'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedLocationFilter = null;
+                            _selectedPriceFilter = null;
+                            _selectedCategoryFilter = null;
+                            _selectedTagFilter = null;
+                          });
+                          Navigator.pop(context);
+                          _fetchPostPins();
+                        },
+                        child: const Text('条件をクリア'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -448,17 +735,47 @@ class _OSMMapPageState extends State<OSMMapPage> {
                     ),
                   ),
                 ),
-                ..._postPins.map(
-                  (post) => Marker(
-                    point: LatLng(post.latitude!, post.longitude!),
+                ..._postGroups.map(
+                  (posts) => Marker(
+                    point: LatLng(
+                      posts.first.latitude!,
+                      posts.first.longitude!,
+                    ),
                     width: 48,
                     height: 48,
                     child: GestureDetector(
-                      onTap: () => _showPostDetail(post),
-                      child: const Icon(
-                        Icons.restaurant,
-                        color: Colors.deepOrange,
-                        size: 36,
+                      onTap: () => _showPostGroupDetail(posts),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const Icon(
+                            Icons.restaurant,
+                            color: Colors.deepOrange,
+                            size: 36,
+                          ),
+                          if (posts.length > 1)
+                            Positioned(
+                              top: 0,
+                              right: 2,
+                              child: DecoratedBox(
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(3),
+                                  child: Text(
+                                    '${posts.length}',
+                                    style: const TextStyle(
+                                      color: Colors.deepOrange,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -477,6 +794,17 @@ class _OSMMapPageState extends State<OSMMapPage> {
               ],
             ),
           ],
+        ),
+        Positioned(
+          top: 16,
+          left: 16,
+          child: FloatingActionButton.small(
+            heroTag: 'map-filter',
+            backgroundColor: Colors.white,
+            foregroundColor: foodPrimary,
+            onPressed: _showFilterSheet,
+            child: const Icon(Icons.search),
+          ),
         ),
         Positioned(
           top: 16,

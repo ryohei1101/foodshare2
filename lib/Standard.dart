@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import "package:foodshare/map.dart";
 import "package:foodshare/profilePage.dart";
 import "package:foodshare/Timeline.dart";
-import "package:foodshare/Searchpage.dart";
 
 class InstaHome extends StatefulWidget {
   final String email;
@@ -33,8 +32,6 @@ class _InstaHomeState extends State<InstaHome> {
       OSMMapPage(email: widget.email),
 
       TimeLinePage(),
-
-      SearchFromPostsPage(),
 
       ProfilePage(
         email: widget.email,
@@ -70,8 +67,6 @@ class _InstaHomeState extends State<InstaHome> {
           ),
 
           const NavigationDestination(icon: Icon(Icons.schedule), label: '最新'),
-
-          const NavigationDestination(icon: Icon(Icons.search), label: '検索'),
 
           const NavigationDestination(
             icon: Icon(Icons.person_outline),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:foodshare/account_search_page.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/follow_list_page.dart';
 import 'package:foodshare/post_model.dart';
@@ -119,7 +120,25 @@ class _ProfilePageState extends State<ProfilePage>
     final age = calculateAge(widget.birthday);
 
     return Scaffold(
-      appBar: AppBar(elevation: 0, title: const Text('Profile')),
+      appBar: AppBar(
+        elevation: 0,
+        title: const Text('Profile'),
+        actions: [
+          IconButton(
+            tooltip: 'アカウント検索',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      AccountSearchPage(currentEmail: widget.email),
+                ),
+              ).then((_) => _reloadFollowData());
+            },
+            icon: const Icon(Icons.person_search),
+          ),
+        ],
+      ),
 
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),

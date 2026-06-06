@@ -24,6 +24,7 @@ class PostPage extends StatefulWidget {
 
 class _PostPageState extends State<PostPage> {
   final ImagePicker _picker = ImagePicker();
+  final TextEditingController _shopNameController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _commentController = TextEditingController();
   final Set<String> _selectedTags = {};
@@ -83,6 +84,7 @@ class _PostPageState extends State<PostPage> {
 
   @override
   void dispose() {
+    _shopNameController.dispose();
     _locationController.dispose();
     _commentController.dispose();
     super.dispose();
@@ -148,11 +150,6 @@ class _PostPageState extends State<PostPage> {
       } else {
         _selectedTags.add(tag);
       }
-
-      _commentController.text = _selectedTags.join(' ');
-      _commentController.selection = TextSelection.fromPosition(
-        TextPosition(offset: _commentController.text.length),
-      );
     });
   }
 
@@ -160,6 +157,7 @@ class _PostPageState extends State<PostPage> {
     if (_selectedImage == null ||
         _selectedCategory == null ||
         _selectedPrice == null ||
+        _shopNameController.text.trim().isEmpty ||
         _locationController.text.trim().isEmpty ||
         _commentController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
@@ -179,10 +177,12 @@ class _PostPageState extends State<PostPage> {
       );
 
       request.fields['user_email'] = widget.email;
+      request.fields['shop_name'] = _shopNameController.text.trim();
       request.fields['category'] = _selectedCategory!;
       request.fields['price_range'] = _selectedPrice!;
       request.fields['location'] = _locationController.text.trim();
       request.fields['comment'] = _commentController.text.trim();
+      request.fields['tags'] = _selectedTags.join(' ');
 
       if (widget.latitude != null) {
         request.fields['latitude'] = widget.latitude.toString();
@@ -318,6 +318,16 @@ class _PostPageState extends State<PostPage> {
                 ),
               ),
             const SizedBox(height: 24),
+            const FoodSectionTitle('店名'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _shopNameController,
+              decoration: const InputDecoration(
+                hintText: '例: さくら食堂',
+                prefixIcon: Icon(Icons.storefront_outlined),
+              ),
+            ),
+            const SizedBox(height: 24),
             const FoodSectionTitle('場所'),
             const SizedBox(height: 8),
             TextField(
@@ -396,10 +406,12 @@ class _PostPageState extends State<PostPage> {
               }).toList(),
             ),
             const SizedBox(height: 12),
+            const FoodSectionTitle('コメント'),
+            const SizedBox(height: 8),
             TextField(
               controller: _commentController,
               maxLines: 3,
-              decoration: const InputDecoration(hintText: 'タグを押すとここに追加／削除されます'),
+              decoration: const InputDecoration(hintText: '例: 落ち着いていてランチにぴったり'),
             ),
             const SizedBox(height: 28),
             SizedBox(

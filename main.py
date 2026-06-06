@@ -18,6 +18,12 @@ import shutil
 
 import uuid
 
+import json
+
+import urllib.parse
+
+import urllib.request
+
 from datetime import datetime
 
 from pathlib import Path
@@ -88,6 +94,50 @@ def ensure_posts_table():
 
     cur.close()
     conn.close()
+
+
+def reverse_geocode(latitude: float, longitude: float) -> str:
+
+    params = urllib.parse.urlencode(
+        {
+            "format": "jsonv2",
+            "lat": latitude,
+            "lon": longitude,
+            "accept-language": "ja",
+            "zoom": 18,
+            "addressdetails": 1
+        }
+    )
+
+    request = urllib.request.Request(
+        f"https://nominatim.openstreetmap.org/reverse?{params}",
+        headers={
+            "User-Agent": "FoodShare/1.0 kamiji1101@gmail.com"
+        }
+    )
+
+    with urllib.request.urlopen(request, timeout=8) as response:
+
+        data = json.loads(response.read().decode("utf-8"))
+
+    return data.get("display_name", "")
+
+
+def post_row_to_dict(row):
+
+    return {
+        "id": row[0],
+        "user_email": row[1],
+        "image_path": row[2],
+        "category": row[3],
+        "price_range": row[4],
+        "location": row[5],
+        "comment": row[6],
+        "latitude": row[7],
+        "longitude": row[8],
+        "created_at": row[9].isoformat() if row[9] else "",
+        "username": row[10] if len(row) > 10 and row[10] else row[1],
+    }
 
 # =========================
 # ⭐ プロフィール画像アップロード
@@ -380,6 +430,24 @@ async def upload_post(
 
         ensure_posts_table()
 
+        display_location = location.strip()
+
+        if latitude is not None and longitude is not None:
+
+            try:
+
+                resolved_location = reverse_geocode(latitude, longitude)
+
+                if resolved_location:
+
+                    display_location = resolved_location
+
+            except Exception as geocode_error:
+
+                print("reverse geocode error")
+
+                print(geocode_error)
+
         # ⭐ 保存先
         safe_filename = f"{uuid.uuid4()}_{file.filename}"
 
@@ -430,7 +498,7 @@ async def upload_post(
                 file_path,
                 category,
                 price_range,
-                location,
+                display_location,
                 comment,
                 latitude,
                 longitude
@@ -447,7 +515,9 @@ async def upload_post(
 
             "message": "post success",
 
-            "image_path": file_path
+            "image_path": file_path,
+
+            "location": display_location
         }
 
     except Exception as e:
@@ -460,3 +530,104 @@ async def upload_post(
             status_code=500,
             detail=str(e)
         )
+
+
+@app.get("/reverse-geocode")
+def reverse_geocode_endpoint(
+    latitude: float,
+    longitude: float
+):
+
+    try:
+
+        address = reverse_geocode(latitude, longitude)
+
+        return {
+            "address": address
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+@app.get("/posts")
+def get_posts(
+    user_email: Optional[str] = None,
+    limit: int = 50
+):
+
+    ensure_posts_table()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    if user_email:
+
+        cur.execute(
+            """
+            SELECT
+                p.id,
+                p.user_email,
+                p.image_path,
+                p.category,
+                p.price_range,
+                p.location,
+                p.comment,
+                p.latitude,
+                p.longitude,
+                p.created_at,
+                u.username
+            FROM posts p
+            LEFT JOIN users u ON u.email = p.user_email
+            WHERE p.user_email = %s
+            ORDER BY p.created_at DESC, p.id DESC
+            LIMIT %s
+            """,
+            (
+                user_email,
+                limit
+            )
+        )
+
+    else:
+
+        cur.execute(
+            """
+            SELECT
+                p.id,
+                p.user_email,
+                p.image_path,
+                p.category,
+                p.price_range,
+                p.location,
+                p.comment,
+                p.latitude,
+                p.longitude,
+                p.created_at,
+                u.username
+            FROM posts p
+            LEFT JOIN users u ON u.email = p.user_email
+            ORDER BY p.created_at DESC, p.id DESC
+            LIMIT %s
+            """,
+            (
+                limit,
+            )
+        )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "posts": [
+            post_row_to_dict(row)
+            for row in rows
+        ]
+    }

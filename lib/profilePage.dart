@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/post_model.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
@@ -26,8 +28,7 @@ class _ProfilePageState extends State<ProfilePage>
 
   // ⭐ 選択画像
   File? selectedImage;
-
-  final List<String> postImages = ['assets/qualify.png', 'assets/pasta.png'];
+  late Future<List<FoodPost>> _myPostsFuture;
 
   // ⭐ 年齢計算
   int? calculateAge(String birthday) {
@@ -97,6 +98,7 @@ class _ProfilePageState extends State<ProfilePage>
     super.initState();
 
     _tabController = TabController(length: 2, vsync: this);
+    _myPostsFuture = _fetchMyPosts();
   }
 
   @override
@@ -247,20 +249,7 @@ class _ProfilePageState extends State<ProfilePage>
                 controller: _tabController,
 
                 children: [
-                  GridView.builder(
-                    padding: const EdgeInsets.all(4),
-
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                        ),
-
-                    itemCount: postImages.length,
-
-                    itemBuilder: (context, i) {
-                      return Image.asset(postImages[i], fit: BoxFit.cover);
-                    },
-                  ),
+                  _MyPostsGrid(postsFuture: _myPostsFuture),
 
                   const Center(child: Text("検索画面")),
                 ],
@@ -269,6 +258,81 @@ class _ProfilePageState extends State<ProfilePage>
           ],
         ),
       ),
+    );
+  }
+
+  Future<List<FoodPost>> _fetchMyPosts() async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/posts?user_email=${Uri.encodeComponent(widget.email)}&limit=100',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception('投稿を取得できませんでした');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final posts = data['posts'] as List<dynamic>? ?? [];
+
+    return posts
+        .map((post) => FoodPost.fromJson(post as Map<String, dynamic>))
+        .toList();
+  }
+}
+
+class _MyPostsGrid extends StatelessWidget {
+  const _MyPostsGrid({required this.postsFuture});
+
+  final Future<List<FoodPost>> postsFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<FoodPost>>(
+      future: postsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              snapshot.error.toString(),
+              style: const TextStyle(color: foodMuted),
+            ),
+          );
+        }
+
+        final posts = snapshot.data ?? [];
+
+        if (posts.isEmpty) {
+          return const Center(
+            child: Text('まだ投稿がありません', style: TextStyle(color: foodMuted)),
+          );
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(4),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+          ),
+          itemCount: posts.length,
+          itemBuilder: (context, index) {
+            return Image.network(
+              posts[index].imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) {
+                return const ColoredBox(
+                  color: Color(0xFFFFEFE3),
+                  child: Icon(Icons.broken_image_outlined, color: foodMuted),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }

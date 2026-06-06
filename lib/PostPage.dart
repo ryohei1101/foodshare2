@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
@@ -32,6 +33,7 @@ class _PostPageState extends State<PostPage> {
   String? _selectedPrice;
   bool _isDetailStep = false;
   bool _isSubmitting = false;
+  bool _isResolvingAddress = false;
 
   final List<String> _categories = const [
     '和食',
@@ -75,10 +77,8 @@ class _PostPageState extends State<PostPage> {
   @override
   void initState() {
     super.initState();
-    if (widget.latitude != null && widget.longitude != null) {
-      _locationController.text =
-          '${widget.latitude!.toStringAsFixed(5)}, ${widget.longitude!.toStringAsFixed(5)}';
-    }
+    _locationController.text = '住所を取得中...';
+    _resolveSelectedAddress();
   }
 
   @override
@@ -95,6 +95,49 @@ class _PostPageState extends State<PostPage> {
       setState(() {
         _selectedImage = File(picked.path);
       });
+    }
+  }
+
+  Future<void> _resolveSelectedAddress() async {
+    if (widget.latitude == null || widget.longitude == null) {
+      _locationController.clear();
+      return;
+    }
+
+    setState(() {
+      _isResolvingAddress = true;
+    });
+
+    try {
+      final uri = Uri.parse(
+        'http://10.0.2.2:8000/reverse-geocode'
+        '?latitude=${widget.latitude}&longitude=${widget.longitude}',
+      );
+      final response = await http.get(uri);
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final address = data['address'] as String? ?? '';
+        _locationController.text = address.isEmpty
+            ? '${widget.latitude!.toStringAsFixed(5)}, ${widget.longitude!.toStringAsFixed(5)}'
+            : address;
+      } else {
+        _locationController.text =
+            '${widget.latitude!.toStringAsFixed(5)}, ${widget.longitude!.toStringAsFixed(5)}';
+      }
+    } catch (e) {
+      debugPrint(e.toString());
+      if (!mounted) return;
+      _locationController.text =
+          '${widget.latitude!.toStringAsFixed(5)}, ${widget.longitude!.toStringAsFixed(5)}';
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResolvingAddress = false;
+        });
+      }
     }
   }
 
@@ -284,6 +327,13 @@ class _PostPageState extends State<PostPage> {
                 prefixIcon: Icon(Icons.location_on_outlined),
               ),
             ),
+            if (_isResolvingAddress) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '住所を取得しています',
+                style: TextStyle(color: foodMuted, fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 24),
             const FoodSectionTitle('カテゴリ'),
             const SizedBox(height: 8),

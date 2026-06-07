@@ -512,6 +512,14 @@ class _OSMMapPageState extends State<OSMMapPage> {
                                 tooltip: isPollSelected
                                     ? 'アンケート候補から外す'
                                     : 'アンケート候補に追加',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: isPollSelected
+                                      ? Colors.orange
+                                      : null,
+                                  foregroundColor: isPollSelected
+                                      ? Colors.white
+                                      : null,
+                                ),
                                 onPressed: () {
                                   MapSelectionStore.togglePollSelection(
                                     MapShopSelection(
@@ -519,6 +527,15 @@ class _OSMMapPageState extends State<OSMMapPage> {
                                       shopName: shopName,
                                       location: firstPost.location,
                                       point: point,
+                                    ),
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        isPollSelected
+                                            ? 'アンケート候補から外しました'
+                                            : 'アンケート候補に追加しました',
+                                      ),
                                     ),
                                   );
                                   setSheetState(() {});

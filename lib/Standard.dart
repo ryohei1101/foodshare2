@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import "package:foodshare/account_search_page.dart";
 import "package:foodshare/dm_page.dart";
 import "package:foodshare/map.dart";
 import "package:foodshare/profilePage.dart";
 import "package:foodshare/Timeline.dart";
+import 'package:http/http.dart' as http;
 
 class InstaHome extends StatefulWidget {
   final String email;
@@ -23,13 +27,15 @@ class InstaHome extends StatefulWidget {
 
 class _InstaHomeState extends State<InstaHome> {
   int _currentIndex = 0;
+  int _unreadDmCount = 0;
+  Timer? _unreadTimer;
 
   List<Widget> get _pages => [
     OSMMapPage(email: widget.email),
 
     TimeLinePage(email: widget.email),
 
-    DmPage(currentEmail: widget.email),
+    DmPage(currentEmail: widget.email, onUnreadChanged: _fetchUnreadDmCount),
 
     AccountSearchPage(currentEmail: widget.email),
 
@@ -39,6 +45,54 @@ class _InstaHomeState extends State<InstaHome> {
       profileImage: widget.profileImage,
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUnreadDmCount();
+    _unreadTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _fetchUnreadDmCount(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _unreadTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchUnreadDmCount() async {
+    try {
+      final uri = Uri.http('10.0.2.2:8000', '/dm/unread-count', {
+        'email': widget.email,
+      });
+      final response = await http.get(uri);
+
+      if (!mounted || response.statusCode != 200) {
+        return;
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+      setState(() {
+        _unreadDmCount = data['unread_count'] as int? ?? 0;
+      });
+    } catch (_) {}
+  }
+
+  Widget _messageIcon(IconData icon) {
+    if (_unreadDmCount <= 0) {
+      return Icon(icon);
+    }
+
+    return Badge.count(
+      count: _unreadDmCount,
+      backgroundColor: Colors.redAccent,
+      textColor: Colors.white,
+      child: Icon(icon),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,9 +111,12 @@ class _InstaHomeState extends State<InstaHome> {
 
         selectedIndex: pageIndex,
 
-        onDestinationSelected: (i) => setState(() {
-          _currentIndex = i;
-        }),
+        onDestinationSelected: (i) {
+          setState(() {
+            _currentIndex = i;
+          });
+          _fetchUnreadDmCount();
+        },
 
         destinations: [
           const NavigationDestination(
@@ -70,9 +127,9 @@ class _InstaHomeState extends State<InstaHome> {
 
           const NavigationDestination(icon: Icon(Icons.schedule), label: '最新'),
 
-          const NavigationDestination(
-            icon: Icon(Icons.mail_outline),
-            selectedIcon: Icon(Icons.mail),
+          NavigationDestination(
+            icon: _messageIcon(Icons.mail_outline),
+            selectedIcon: _messageIcon(Icons.mail),
             label: 'メッセージ',
           ),
 

@@ -8,9 +8,10 @@ import 'package:foodshare/user_model.dart';
 import 'package:http/http.dart' as http;
 
 class DmPage extends StatefulWidget {
-  const DmPage({super.key, required this.currentEmail});
+  const DmPage({super.key, required this.currentEmail, this.onUnreadChanged});
 
   final String currentEmail;
+  final VoidCallback? onUnreadChanged;
 
   @override
   State<DmPage> createState() => _DmPageState();
@@ -147,6 +148,7 @@ class _DmPageState extends State<DmPage> {
       lastMessage: '',
       lastMessageAt: data['updated_at'] as String? ?? '',
       updatedAt: data['updated_at'] as String? ?? '',
+      unreadCount: 0,
     );
 
     await Navigator.push(
@@ -159,6 +161,7 @@ class _DmPageState extends State<DmPage> {
 
     _searchController.clear();
     await _reloadThreads();
+    widget.onUnreadChanged?.call();
   }
 
   Future<void> _openThread(DmThread thread) async {
@@ -170,6 +173,7 @@ class _DmPageState extends State<DmPage> {
       ),
     );
     await _reloadThreads();
+    widget.onUnreadChanged?.call();
   }
 
   Future<bool> _deleteThread(DmThread thread) async {
@@ -211,6 +215,7 @@ class _DmPageState extends State<DmPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('DMを削除しました')));
+    widget.onUnreadChanged?.call();
     return true;
   }
 
@@ -789,6 +794,7 @@ class _ThreadList extends StatelessWidget {
                       ? 'メッセージを開始'
                       : thread.lastMessage,
                   isGroup: thread.isGroup,
+                  unreadCount: thread.unreadCount,
                   trailing: const Icon(Icons.chevron_right),
                   onPressed: () => onThreadPressed(thread),
                 ),
@@ -806,6 +812,7 @@ class _DmRow extends StatelessWidget {
     required this.title,
     required this.onPressed,
     required this.isGroup,
+    this.unreadCount = 0,
     this.subtitle,
     this.trailing,
   });
@@ -813,6 +820,7 @@ class _DmRow extends StatelessWidget {
   final String title;
   final VoidCallback onPressed;
   final bool isGroup;
+  final int unreadCount;
   final String? subtitle;
   final Widget? trailing;
 
@@ -857,6 +865,14 @@ class _DmRow extends StatelessWidget {
                 ],
               ),
             ),
+            if (unreadCount > 0) ...[
+              const SizedBox(width: 10),
+              Badge.count(
+                count: unreadCount,
+                backgroundColor: Colors.redAccent,
+                textColor: Colors.white,
+              ),
+            ],
             if (trailing != null) ...[const SizedBox(width: 10), trailing!],
           ],
         ),
@@ -1061,6 +1077,7 @@ class DmThread {
     required this.lastMessage,
     required this.lastMessageAt,
     required this.updatedAt,
+    required this.unreadCount,
   });
 
   final int id;
@@ -1071,6 +1088,7 @@ class DmThread {
   final String lastMessage;
   final String lastMessageAt;
   final String updatedAt;
+  final int unreadCount;
 
   bool get isGroup => threadType == 'group';
 
@@ -1098,6 +1116,7 @@ class DmThread {
       lastMessage: json['last_message'] as String? ?? '',
       lastMessageAt: json['last_message_at'] as String? ?? '',
       updatedAt: json['updated_at'] as String? ?? '',
+      unreadCount: json['unread_count'] as int? ?? 0,
     );
   }
 }

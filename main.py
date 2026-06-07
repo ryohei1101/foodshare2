@@ -237,6 +237,18 @@ def ensure_dm_tables():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS dm_thread_reads (
+            thread_type TEXT NOT NULL,
+            thread_id INTEGER NOT NULL,
+            user_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            read_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (thread_type, thread_id, user_email)
+        )
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS dm_polls (
             id SERIAL PRIMARY KEY,
             thread_type TEXT NOT NULL,
@@ -1374,7 +1386,8 @@ def get_dm_threads(email: str):
             other_user.email,
             other_user.profile_image,
             last_message.body,
-            last_message.created_at
+            last_message.created_at,
+            COALESCE(unread.unread_count, 0) AS unread_count
         FROM dm_threads t
         JOIN users other_user
           ON other_user.email = CASE
@@ -1388,6 +1401,20 @@ def get_dm_threads(email: str):
             ORDER BY m.created_at DESC, m.id DESC
             LIMIT 1
         ) last_message ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS unread_count
+            FROM dm_messages m
+            LEFT JOIN dm_thread_reads r
+              ON r.thread_type = 'direct'
+             AND r.thread_id = t.id
+             AND r.user_email = %s
+            WHERE m.thread_id = t.id
+              AND m.sender_email <> %s
+              AND (
+                  r.read_at IS NULL
+                  OR m.created_at > r.read_at
+              )
+        ) unread ON TRUE
         WHERE (t.user_one_email = %s OR t.user_two_email = %s)
           AND NOT EXISTS (
               SELECT 1
@@ -1399,6 +1426,8 @@ def get_dm_threads(email: str):
         ORDER BY COALESCE(last_message.created_at, t.updated_at) DESC, t.id DESC
         """,
         (
+            email,
+            email,
             email,
             email,
             email,
@@ -1417,7 +1446,8 @@ def get_dm_threads(email: str):
             g.name,
             COUNT(gm_all.user_email) AS member_count,
             last_message.body,
-            last_message.created_at
+            last_message.created_at,
+            COALESCE(unread.unread_count, 0) AS unread_count
         FROM dm_group_threads gt
         JOIN groups g ON g.id = gt.group_id
         JOIN group_members gm_me
@@ -1432,6 +1462,20 @@ def get_dm_threads(email: str):
             ORDER BY m.created_at DESC, m.id DESC
             LIMIT 1
         ) last_message ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS unread_count
+            FROM dm_group_messages m
+            LEFT JOIN dm_thread_reads r
+              ON r.thread_type = 'group'
+             AND r.thread_id = gt.id
+             AND r.user_email = %s
+            WHERE m.thread_id = gt.id
+              AND m.sender_email <> %s
+              AND (
+                  r.read_at IS NULL
+                  OR m.created_at > r.read_at
+              )
+        ) unread ON TRUE
         WHERE NOT EXISTS (
             SELECT 1
             FROM dm_hidden_threads h
@@ -1439,10 +1483,12 @@ def get_dm_threads(email: str):
               AND h.thread_id = gt.id
               AND h.user_email = %s
         )
-        GROUP BY gt.id, gt.updated_at, g.id, g.name, last_message.body, last_message.created_at
+        GROUP BY gt.id, gt.updated_at, g.id, g.name, last_message.body, last_message.created_at, unread.unread_count
         ORDER BY COALESCE(last_message.created_at, gt.updated_at) DESC, gt.id DESC
         """,
         (
+            email,
+            email,
             email,
             email,
         )
@@ -1467,6 +1513,7 @@ def get_dm_threads(email: str):
                 },
                 "last_message": row[5] if row[5] else "",
                 "last_message_at": row[6].isoformat() if row[6] else "",
+                "unread_count": row[7],
             }
             for row in rows
         ] + [
@@ -1481,9 +1528,95 @@ def get_dm_threads(email: str):
                 },
                 "last_message": row[5] if row[5] else "",
                 "last_message_at": row[6].isoformat() if row[6] else "",
+                "unread_count": row[7],
             }
             for row in group_rows
         ], key=lambda thread: thread["last_message_at"] or thread["updated_at"], reverse=True)
+    }
+
+
+@app.get("/dm/unread-count")
+def get_dm_unread_count(email: str):
+
+    ensure_dm_tables()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM dm_threads t
+        JOIN dm_messages m ON m.thread_id = t.id
+        LEFT JOIN dm_thread_reads r
+          ON r.thread_type = 'direct'
+         AND r.thread_id = t.id
+         AND r.user_email = %s
+        WHERE (t.user_one_email = %s OR t.user_two_email = %s)
+          AND m.sender_email <> %s
+          AND (
+              r.read_at IS NULL
+              OR m.created_at > r.read_at
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM dm_hidden_threads h
+              WHERE h.thread_type = 'direct'
+                AND h.thread_id = t.id
+                AND h.user_email = %s
+          )
+        """,
+        (
+            email,
+            email,
+            email,
+            email,
+            email,
+        )
+    )
+
+    direct_count = cur.fetchone()[0]
+
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM dm_group_threads gt
+        JOIN group_members gm ON gm.group_id = gt.group_id
+        JOIN dm_group_messages m ON m.thread_id = gt.id
+        LEFT JOIN dm_thread_reads r
+          ON r.thread_type = 'group'
+         AND r.thread_id = gt.id
+         AND r.user_email = %s
+        WHERE gm.user_email = %s
+          AND m.sender_email <> %s
+          AND (
+              r.read_at IS NULL
+              OR m.created_at > r.read_at
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM dm_hidden_threads h
+              WHERE h.thread_type = 'group'
+                AND h.thread_id = gt.id
+                AND h.user_email = %s
+          )
+        """,
+        (
+            email,
+            email,
+            email,
+            email,
+        )
+    )
+
+    group_count = cur.fetchone()[0]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "unread_count": direct_count + group_count
     }
 
 
@@ -1932,6 +2065,22 @@ def get_dm_messages(
                     "voted_by_me": poll_row[11],
                 }
             )
+
+    cur.execute(
+        """
+        INSERT INTO dm_thread_reads (thread_type, thread_id, user_email, read_at)
+        VALUES (%s, %s, %s, NOW())
+        ON CONFLICT (thread_type, thread_id, user_email)
+        DO UPDATE SET read_at = NOW()
+        """,
+        (
+            thread_type,
+            thread_id,
+            email,
+        )
+    )
+
+    conn.commit()
 
     cur.close()
     conn.close()

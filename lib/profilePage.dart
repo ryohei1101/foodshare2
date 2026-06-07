@@ -733,32 +733,42 @@ class ProfilePostDetailPage extends StatefulWidget {
 }
 
 class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
-  late final PageController _pageController;
+  late final List<GlobalKey> _postKeys;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
+    _postKeys = List.generate(widget.posts.length, (_) => GlobalKey());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.initialIndex >= _postKeys.length) {
+        return;
+      }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+      final context = _postKeys[widget.initialIndex].currentContext;
+      if (context == null) {
+        return;
+      }
+
+      Scrollable.ensureVisible(
+        context,
+        duration: Duration.zero,
+        alignment: 0.04,
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('投稿')),
-      body: PageView.builder(
-        controller: _pageController,
-        scrollDirection: Axis.vertical,
+      body: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
         itemCount: widget.posts.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 14),
         itemBuilder: (context, index) {
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
-            children: [InstaPostCard(post: widget.posts[index])],
+          return KeyedSubtree(
+            key: _postKeys[index],
+            child: InstaPostCard(post: widget.posts[index]),
           );
         },
       ),

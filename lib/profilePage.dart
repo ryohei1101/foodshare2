@@ -420,7 +420,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                  padding: const EdgeInsets.fromLTRB(22, 14, 22, 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -432,7 +432,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                             profileImage: widget.profileImage,
                             onTap: pickImage,
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 22),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,7 +447,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                const SizedBox(height: 14),
+                                const SizedBox(height: 18),
                                 FutureBuilder<Map<String, int>>(
                                   future: _followStatsFuture,
                                   builder: (context, followSnapshot) {
@@ -495,36 +495,89 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
-                      const Divider(height: 1, color: foodLine),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          const Text(
-                            '投稿',
-                            style: TextStyle(
-                              color: foodInk,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
+                      const SizedBox(height: 26),
+                      Container(
+                        height: 40,
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE9E9ED),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFBFC0C4),
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x1A000000),
+                                      blurRadius: 3,
+                                      offset: Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.grid_on, size: 15),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      '投稿',
+                                      style: TextStyle(
+                                        color: foodInk,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            tooltip: '投稿を絞り込む',
-                            onPressed: _showPostFilterSheet,
-                            icon: Icon(
-                              _hasActivePostFilters
-                                  ? Icons.manage_search
-                                  : Icons.search,
-                              color: _hasActivePostFilters ? foodPrimary : null,
+                            Expanded(
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: _showPostFilterSheet,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      _hasActivePostFilters
+                                          ? Icons.manage_search
+                                          : Icons.search,
+                                      color: _hasActivePostFilters
+                                          ? foodPrimary
+                                          : foodInk,
+                                      size: 17,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '絞り込み',
+                                      style: TextStyle(
+                                        color: _hasActivePostFilters
+                                            ? foodPrimary
+                                            : foodInk,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       if (_hasActivePostFilters)
-                        const Text(
-                          '上に引っ張ると条件を解除できます',
-                          style: TextStyle(color: foodMuted, fontSize: 12),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            '上に引っ張ると条件を解除できます',
+                            style: TextStyle(color: foodMuted, fontSize: 12),
+                          ),
                         ),
                     ],
                   ),
@@ -559,17 +612,15 @@ class _ProfileImage extends StatelessWidget {
     return Stack(
       children: [
         Container(
-          width: 108,
-          height: 108,
+          width: 96,
+          height: 96,
           decoration: BoxDecoration(
-            color: const Color(0xFFFFEFE3),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: foodLine),
+            shape: BoxShape.circle,
+            color: const Color(0xFFE4E4E8),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(5),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(19),
+            padding: const EdgeInsets.all(2),
+            child: ClipOval(
               child: imageFile != null
                   ? Image.file(imageFile!, fit: BoxFit.cover)
                   : Image.network(
@@ -596,7 +647,7 @@ class _ProfileImage extends StatelessWidget {
               height: 34,
               decoration: BoxDecoration(
                 color: foodPrimary,
-                borderRadius: BorderRadius.circular(12),
+                shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 3),
               ),
               child: const Icon(Icons.add, color: Colors.white, size: 20),

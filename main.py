@@ -165,6 +165,44 @@ def ensure_groups_tables():
     conn.close()
 
 
+def ensure_dm_tables():
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dm_threads (
+            id SERIAL PRIMARY KEY,
+            user_one_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            user_two_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            CHECK (user_one_email <> user_two_email),
+            UNIQUE (user_one_email, user_two_email)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dm_messages (
+            id SERIAL PRIMARY KEY,
+            thread_id INTEGER NOT NULL REFERENCES dm_threads(id) ON DELETE CASCADE,
+            sender_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            body TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+
 def format_japanese_address(data: dict) -> str:
 
     address = data.get("address", {})
@@ -419,6 +457,18 @@ class CreateGroupRequest(BaseModel):
 class AddGroupMembersRequest(BaseModel):
 
     member_emails: list[str]
+
+
+class CreateDmThreadRequest(BaseModel):
+
+    current_email: str
+    target_email: str
+
+
+class SendDmMessageRequest(BaseModel):
+
+    sender_email: str
+    body: str
 
 
 @app.post("/login")
@@ -1084,6 +1134,398 @@ def get_follow_list(
             }
             for row in rows
         ]
+    }
+
+
+@app.get("/dm/search-users")
+def search_dm_users(
+    email: str,
+    query: str = "",
+    limit: int = 20
+):
+
+    ensure_follows_table()
+
+    search_query = query.strip()
+    safe_limit = max(1, min(limit, 50))
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    params = [
+        email,
+        email,
+    ]
+
+    query_clause = ""
+
+    if search_query:
+
+        query_clause = "AND (COALESCE(u.username, '') ILIKE %s OR u.email ILIKE %s)"
+
+        params.extend([f"%{search_query}%", f"%{search_query}%"])
+
+    params.append(safe_limit)
+
+    cur.execute(
+        f"""
+        SELECT
+            u.username,
+            u.email,
+            u.profile_image,
+            TRUE AS is_following
+        FROM follows f
+        JOIN users u ON u.email = f.following_email
+        WHERE f.follower_email = %s
+          AND u.email <> %s
+          {query_clause}
+        ORDER BY f.created_at DESC, LOWER(COALESCE(NULLIF(u.username, ''), u.email)) ASC
+        LIMIT %s
+        """,
+        tuple(params)
+    )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "users": [
+            {
+                "username": row[0],
+                "email": row[1],
+                "profile_image": row[2] if row[2] else "",
+                "is_following": row[3],
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.get("/dm/threads")
+def get_dm_threads(email: str):
+
+    ensure_dm_tables()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            t.id,
+            t.updated_at,
+            other_user.username,
+            other_user.email,
+            other_user.profile_image,
+            last_message.body,
+            last_message.created_at
+        FROM dm_threads t
+        JOIN users other_user
+          ON other_user.email = CASE
+              WHEN t.user_one_email = %s THEN t.user_two_email
+              ELSE t.user_one_email
+          END
+        LEFT JOIN LATERAL (
+            SELECT body, created_at
+            FROM dm_messages m
+            WHERE m.thread_id = t.id
+            ORDER BY m.created_at DESC, m.id DESC
+            LIMIT 1
+        ) last_message ON TRUE
+        WHERE t.user_one_email = %s
+           OR t.user_two_email = %s
+        ORDER BY COALESCE(last_message.created_at, t.updated_at) DESC, t.id DESC
+        """,
+        (
+            email,
+            email,
+            email,
+        )
+    )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "threads": [
+            {
+                "id": row[0],
+                "updated_at": row[1].isoformat() if row[1] else "",
+                "other_user": {
+                    "username": row[2],
+                    "email": row[3],
+                    "profile_image": row[4] if row[4] else "",
+                    "is_following": True,
+                },
+                "last_message": row[5] if row[5] else "",
+                "last_message_at": row[6].isoformat() if row[6] else "",
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.post("/dm/threads")
+def create_dm_thread(data: CreateDmThreadRequest):
+
+    ensure_follows_table()
+    ensure_dm_tables()
+
+    if data.current_email == data.target_email:
+
+        raise HTTPException(
+            status_code=400,
+            detail="自分にはDMを送れません"
+        )
+
+    user_one_email, user_two_email = sorted([
+        data.current_email,
+        data.target_email,
+    ])
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM follows
+            WHERE follower_email = %s
+              AND following_email = %s
+            """,
+            (
+                data.current_email,
+                data.target_email,
+            )
+        )
+
+        if cur.fetchone() is None:
+
+            raise HTTPException(
+                status_code=403,
+                detail="フォロー中のアカウントにだけDMできます"
+            )
+
+        cur.execute(
+            """
+            INSERT INTO dm_threads (user_one_email, user_two_email)
+            VALUES (%s, %s)
+            ON CONFLICT (user_one_email, user_two_email)
+            DO UPDATE SET updated_at = dm_threads.updated_at
+            RETURNING id, updated_at
+            """,
+            (
+                user_one_email,
+                user_two_email,
+            )
+        )
+
+        thread_id, updated_at = cur.fetchone()
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "id": thread_id,
+        "updated_at": updated_at.isoformat() if updated_at else "",
+    }
+
+
+@app.get("/dm/threads/{thread_id}/messages")
+def get_dm_messages(
+    thread_id: int,
+    email: str
+):
+
+    ensure_dm_tables()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT 1
+        FROM dm_threads
+        WHERE id = %s
+          AND (user_one_email = %s OR user_two_email = %s)
+        """,
+        (
+            thread_id,
+            email,
+            email,
+        )
+    )
+
+    if cur.fetchone() is None:
+
+        cur.close()
+        conn.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="thread not found"
+        )
+
+    cur.execute(
+        """
+        SELECT
+            id,
+            sender_email,
+            body,
+            created_at
+        FROM dm_messages
+        WHERE thread_id = %s
+        ORDER BY created_at ASC, id ASC
+        """,
+        (
+            thread_id,
+        )
+    )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "messages": [
+            {
+                "id": row[0],
+                "sender_email": row[1],
+                "body": row[2],
+                "created_at": row[3].isoformat() if row[3] else "",
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.post("/dm/threads/{thread_id}/messages")
+def send_dm_message(
+    thread_id: int,
+    data: SendDmMessageRequest
+):
+
+    ensure_dm_tables()
+
+    body = data.body.strip()
+
+    if not body:
+
+        raise HTTPException(
+            status_code=400,
+            detail="メッセージを入力してください"
+        )
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM dm_threads
+            WHERE id = %s
+              AND (user_one_email = %s OR user_two_email = %s)
+            """,
+            (
+                thread_id,
+                data.sender_email,
+                data.sender_email,
+            )
+        )
+
+        if cur.fetchone() is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail="thread not found"
+            )
+
+        cur.execute(
+            """
+            INSERT INTO dm_messages (thread_id, sender_email, body)
+            VALUES (%s, %s, %s)
+            RETURNING id, created_at
+            """,
+            (
+                thread_id,
+                data.sender_email,
+                body,
+            )
+        )
+
+        message_id, created_at = cur.fetchone()
+
+        cur.execute(
+            """
+            UPDATE dm_threads
+            SET updated_at = NOW()
+            WHERE id = %s
+            """,
+            (
+                thread_id,
+            )
+        )
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "id": message_id,
+        "sender_email": data.sender_email,
+        "body": body,
+        "created_at": created_at.isoformat() if created_at else "",
     }
 
 

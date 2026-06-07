@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import "package:foodshare/account_search_page.dart";
+import "package:foodshare/dm_page.dart";
 import "package:foodshare/map.dart";
 import "package:foodshare/profilePage.dart";
 import "package:foodshare/Timeline.dart";
@@ -27,6 +28,8 @@ class _InstaHomeState extends State<InstaHome> {
     OSMMapPage(email: widget.email),
 
     TimeLinePage(email: widget.email),
+
+    DmPage(currentEmail: widget.email),
 
     AccountSearchPage(currentEmail: widget.email),
 
@@ -66,6 +69,12 @@ class _InstaHomeState extends State<InstaHome> {
           ),
 
           const NavigationDestination(icon: Icon(Icons.schedule), label: '最新'),
+
+          const NavigationDestination(
+            icon: Icon(Icons.mail_outline),
+            selectedIcon: Icon(Icons.mail),
+            label: 'メッセージ',
+          ),
 
           const NavigationDestination(
             icon: Icon(Icons.search_outlined),

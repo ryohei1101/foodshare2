@@ -52,17 +52,7 @@ class NewOrLoginPage extends StatelessWidget {
                         height: 1.05,
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      '記憶に残る一皿と、信頼できる人の店選びをひとつに。',
-                      style: TextStyle(
-                        color: foodMuted,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        height: 1.55,
-                      ),
-                    ),
-                    const SizedBox(height: 34),
+                    const SizedBox(height: 30),
                     Container(
                       height: 1,
                       decoration: const BoxDecoration(

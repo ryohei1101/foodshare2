@@ -461,16 +461,76 @@ class _DmThreadPageState extends State<DmThreadPage> {
     );
 
     if (chosen == null || chosen.isEmpty) return;
+    if (!mounted) return;
 
-    final body = [
-      '[アンケート]',
-      '行きたい店舗を選んでください',
-      for (var i = 0; i < chosen.length; i++)
-        '${i + 1}. ${chosen[i].shopName} - ${chosen[i].location}',
-    ].join('\n');
+    if (chosen.length < 2) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('アンケート候補は2つ以上選択してください')));
+      return;
+    }
 
-    _messageController.text = body;
-    await _sendMessage();
+    final response = await http.post(
+      Uri.http('10.0.2.2:8000', '/dm/threads/${widget.thread.id}/polls', {
+        'thread_type': widget.thread.threadType,
+      }),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'sender_email': widget.currentEmail,
+        'options': chosen
+            .map(
+              (selection) => {
+                'shop_key': selection.key,
+                'shop_name': selection.shopName,
+                'location': selection.location,
+              },
+            )
+            .toList(),
+      }),
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode != 200) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('アンケートを送信できませんでした')));
+      return;
+    }
+
+    _reloadMessages();
+  }
+
+  Future<void> _votePoll(DmPoll poll, Set<int> optionIds) async {
+    if (optionIds.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('回答を選択してください')));
+      return;
+    }
+
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2:8000/dm/polls/${poll.id}/vote'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'user_email': widget.currentEmail,
+        'option_ids': optionIds.toList(),
+      }),
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode != 200) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('アンケートに回答できませんでした')));
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('回答しました')));
+    _reloadMessages();
   }
 
   @override
@@ -514,6 +574,16 @@ class _DmThreadPageState extends State<DmThreadPage> {
                   itemBuilder: (context, index) {
                     final message = messages[messages.length - 1 - index];
                     final isMine = message.senderEmail == widget.currentEmail;
+
+                    final poll = message.poll;
+
+                    if (poll != null) {
+                      return _PollMessageCard(
+                        poll: poll,
+                        isMine: isMine,
+                        onVote: (optionIds) => _votePoll(poll, optionIds),
+                      );
+                    }
 
                     return Align(
                       alignment: isMine
@@ -804,6 +874,115 @@ class _DmRow extends StatelessWidget {
   }
 }
 
+class _PollMessageCard extends StatefulWidget {
+  const _PollMessageCard({
+    required this.poll,
+    required this.isMine,
+    required this.onVote,
+  });
+
+  final DmPoll poll;
+  final bool isMine;
+  final ValueChanged<Set<int>> onVote;
+
+  @override
+  State<_PollMessageCard> createState() => _PollMessageCardState();
+}
+
+class _PollMessageCardState extends State<_PollMessageCard> {
+  late Set<int> _selectedOptionIds;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedOptionIds = widget.poll.votedOptionIds.toSet();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PollMessageCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.poll.id != widget.poll.id) {
+      _selectedOptionIds = widget.poll.votedOptionIds.toSet();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: widget.isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 330),
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: foodLine),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.how_to_vote, color: foodPrimary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.poll.question,
+                    style: const TextStyle(
+                      color: foodInk,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...widget.poll.options.map((option) {
+              final selected = _selectedOptionIds.contains(option.id);
+              return CheckboxListTile(
+                value: selected,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: (value) {
+                  setState(() {
+                    if (value == true) {
+                      _selectedOptionIds.add(option.id);
+                    } else {
+                      _selectedOptionIds.remove(option.id);
+                    }
+                  });
+                },
+                title: Text(
+                  option.shopName,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text('${option.location} ・ ${option.voteCount}票'),
+              );
+            }),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _selectedOptionIds.isEmpty
+                  ? null
+                  : () => widget.onVote(_selectedOptionIds),
+              child: const Text('回答する'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class DmThread {
   const DmThread({
     required this.id,
@@ -909,19 +1088,84 @@ class DmMessage {
     required this.senderEmail,
     required this.body,
     required this.createdAt,
+    required this.poll,
   });
 
   final int id;
   final String senderEmail;
   final String body;
   final String createdAt;
+  final DmPoll? poll;
 
   factory DmMessage.fromJson(Map<String, dynamic> json) {
+    final pollJson = json['poll'] as Map<String, dynamic>?;
+
     return DmMessage(
       id: json['id'] as int? ?? 0,
       senderEmail: json['sender_email'] as String? ?? '',
       body: json['body'] as String? ?? '',
       createdAt: json['created_at'] as String? ?? '',
+      poll: pollJson == null ? null : DmPoll.fromJson(pollJson),
+    );
+  }
+}
+
+class DmPoll {
+  const DmPoll({
+    required this.id,
+    required this.question,
+    required this.createdBy,
+    required this.options,
+  });
+
+  final int id;
+  final String question;
+  final String createdBy;
+  final List<DmPollOption> options;
+
+  List<int> get votedOptionIds => options
+      .where((option) => option.votedByMe)
+      .map((option) => option.id)
+      .toList();
+
+  factory DmPoll.fromJson(Map<String, dynamic> json) {
+    final options = json['options'] as List<dynamic>? ?? [];
+
+    return DmPoll(
+      id: json['id'] as int? ?? 0,
+      question: json['question'] as String? ?? 'アンケート',
+      createdBy: json['created_by'] as String? ?? '',
+      options: options
+          .map(
+            (option) => DmPollOption.fromJson(option as Map<String, dynamic>),
+          )
+          .toList(),
+    );
+  }
+}
+
+class DmPollOption {
+  const DmPollOption({
+    required this.id,
+    required this.shopName,
+    required this.location,
+    required this.voteCount,
+    required this.votedByMe,
+  });
+
+  final int id;
+  final String shopName;
+  final String location;
+  final int voteCount;
+  final bool votedByMe;
+
+  factory DmPollOption.fromJson(Map<String, dynamic> json) {
+    return DmPollOption(
+      id: json['id'] as int? ?? 0,
+      shopName: json['shop_name'] as String? ?? '',
+      location: json['location'] as String? ?? '',
+      voteCount: json['vote_count'] as int? ?? 0,
+      votedByMe: json['voted_by_me'] as bool? ?? false,
     );
   }
 }

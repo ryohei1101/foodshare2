@@ -235,6 +235,45 @@ def ensure_dm_tables():
         """
     )
 
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dm_polls (
+            id SERIAL PRIMARY KEY,
+            thread_type TEXT NOT NULL,
+            thread_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            question TEXT NOT NULL,
+            created_by TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dm_poll_options (
+            id SERIAL PRIMARY KEY,
+            poll_id INTEGER NOT NULL REFERENCES dm_polls(id) ON DELETE CASCADE,
+            shop_key TEXT NOT NULL,
+            shop_name TEXT NOT NULL,
+            location TEXT NOT NULL,
+            position INTEGER NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dm_poll_votes (
+            poll_id INTEGER NOT NULL REFERENCES dm_polls(id) ON DELETE CASCADE,
+            option_id INTEGER NOT NULL REFERENCES dm_poll_options(id) ON DELETE CASCADE,
+            user_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (option_id, user_email)
+        )
+        """
+    )
+
     conn.commit()
 
     cur.close()
@@ -513,6 +552,25 @@ class SendDmMessageRequest(BaseModel):
 
     sender_email: str
     body: str
+
+
+class CreateDmPollOptionRequest(BaseModel):
+
+    shop_key: str
+    shop_name: str
+    location: str
+
+
+class CreateDmPollRequest(BaseModel):
+
+    sender_email: str
+    options: list[CreateDmPollOptionRequest]
+
+
+class VoteDmPollRequest(BaseModel):
+
+    user_email: str
+    option_ids: list[int]
 
 
 @app.post("/login")
@@ -1805,6 +1863,76 @@ def get_dm_messages(
 
     rows = cur.fetchall()
 
+    message_ids = [row[0] for row in rows]
+    polls_by_message_id = {}
+
+    if message_ids:
+
+        cur.execute(
+            """
+            SELECT
+                p.id,
+                p.message_id,
+                p.question,
+                p.created_by,
+                p.created_at,
+                o.id,
+                o.shop_key,
+                o.shop_name,
+                o.location,
+                o.position,
+                COUNT(v.user_email) AS vote_count,
+                EXISTS (
+                    SELECT 1
+                    FROM dm_poll_votes my_vote
+                    WHERE my_vote.option_id = o.id
+                      AND my_vote.user_email = %s
+                ) AS voted_by_me
+            FROM dm_polls p
+            JOIN dm_poll_options o ON o.poll_id = p.id
+            LEFT JOIN dm_poll_votes v ON v.option_id = o.id
+            WHERE p.thread_type = %s
+              AND p.thread_id = %s
+              AND p.message_id = ANY(%s)
+            GROUP BY p.id, p.message_id, p.question, p.created_by, p.created_at,
+                     o.id, o.shop_key, o.shop_name, o.location, o.position
+            ORDER BY p.id ASC, o.position ASC
+            """,
+            (
+                email,
+                thread_type,
+                thread_id,
+                message_ids,
+            )
+        )
+
+        poll_rows = cur.fetchall()
+
+        for poll_row in poll_rows:
+
+            poll = polls_by_message_id.setdefault(
+                poll_row[1],
+                {
+                    "id": poll_row[0],
+                    "question": poll_row[2],
+                    "created_by": poll_row[3],
+                    "created_at": poll_row[4].isoformat() if poll_row[4] else "",
+                    "options": [],
+                }
+            )
+
+            poll["options"].append(
+                {
+                    "id": poll_row[5],
+                    "shop_key": poll_row[6],
+                    "shop_name": poll_row[7],
+                    "location": poll_row[8],
+                    "position": poll_row[9],
+                    "vote_count": poll_row[10],
+                    "voted_by_me": poll_row[11],
+                }
+            )
+
     cur.close()
     conn.close()
 
@@ -1815,6 +1943,7 @@ def get_dm_messages(
                 "sender_email": row[1],
                 "body": row[2],
                 "created_at": row[3].isoformat() if row[3] else "",
+                "poll": polls_by_message_id.get(row[0]),
             }
             for row in rows
         ]
@@ -1950,6 +2079,349 @@ def send_dm_message(
         "sender_email": data.sender_email,
         "body": body,
         "created_at": created_at.isoformat() if created_at else "",
+    }
+
+
+@app.post("/dm/threads/{thread_id}/polls")
+def create_dm_poll(
+    thread_id: int,
+    data: CreateDmPollRequest,
+    thread_type: str = "direct"
+):
+
+    ensure_dm_tables()
+
+    poll_options = [
+        option
+        for option in data.options
+        if option.shop_name.strip()
+    ]
+
+    if len(poll_options) < 2:
+
+        raise HTTPException(
+            status_code=400,
+            detail="アンケート候補は2つ以上選択してください"
+        )
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        if thread_type == "direct":
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM dm_threads
+                WHERE id = %s
+                  AND (user_one_email = %s OR user_two_email = %s)
+                """,
+                (
+                    thread_id,
+                    data.sender_email,
+                    data.sender_email,
+                )
+            )
+
+            message_table = "dm_messages"
+            thread_table = "dm_threads"
+
+        elif thread_type == "group":
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM dm_group_threads gt
+                JOIN group_members gm ON gm.group_id = gt.group_id
+                WHERE gt.id = %s
+                  AND gm.user_email = %s
+                """,
+                (
+                    thread_id,
+                    data.sender_email,
+                )
+            )
+
+            message_table = "dm_group_messages"
+            thread_table = "dm_group_threads"
+
+        else:
+
+            raise HTTPException(
+                status_code=400,
+                detail="thread_type must be direct or group"
+            )
+
+        if cur.fetchone() is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail="thread not found"
+            )
+
+        body = "[アンケート] 行きたい店舗を選んでください"
+
+        cur.execute(
+            f"""
+            INSERT INTO {message_table} (thread_id, sender_email, body)
+            VALUES (%s, %s, %s)
+            RETURNING id, created_at
+            """,
+            (
+                thread_id,
+                data.sender_email,
+                body,
+            )
+        )
+
+        message_id, created_at = cur.fetchone()
+
+        cur.execute(
+            """
+            INSERT INTO dm_polls (
+                thread_type,
+                thread_id,
+                message_id,
+                question,
+                created_by
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                thread_type,
+                thread_id,
+                message_id,
+                "行きたい店舗を選んでください",
+                data.sender_email,
+            )
+        )
+
+        poll_id = cur.fetchone()[0]
+
+        for index, option in enumerate(poll_options):
+
+            cur.execute(
+                """
+                INSERT INTO dm_poll_options (
+                    poll_id,
+                    shop_key,
+                    shop_name,
+                    location,
+                    position
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    poll_id,
+                    option.shop_key.strip(),
+                    option.shop_name.strip(),
+                    option.location.strip(),
+                    index,
+                )
+            )
+
+        cur.execute(
+            f"""
+            UPDATE {thread_table}
+            SET updated_at = NOW()
+            WHERE id = %s
+            """,
+            (
+                thread_id,
+            )
+        )
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "id": message_id,
+        "sender_email": data.sender_email,
+        "body": body,
+        "created_at": created_at.isoformat() if created_at else "",
+        "poll_id": poll_id,
+    }
+
+
+@app.post("/dm/polls/{poll_id}/vote")
+def vote_dm_poll(
+    poll_id: int,
+    data: VoteDmPollRequest
+):
+
+    ensure_dm_tables()
+
+    option_ids = sorted(set(data.option_ids))
+
+    if not option_ids:
+
+        raise HTTPException(
+            status_code=400,
+            detail="回答を選択してください"
+        )
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute(
+            """
+            SELECT thread_type, thread_id
+            FROM dm_polls
+            WHERE id = %s
+            """,
+            (
+                poll_id,
+            )
+        )
+
+        poll_row = cur.fetchone()
+
+        if poll_row is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail="poll not found"
+            )
+
+        thread_type, thread_id = poll_row
+
+        if thread_type == "direct":
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM dm_threads
+                WHERE id = %s
+                  AND (user_one_email = %s OR user_two_email = %s)
+                """,
+                (
+                    thread_id,
+                    data.user_email,
+                    data.user_email,
+                )
+            )
+
+        else:
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM dm_group_threads gt
+                JOIN group_members gm ON gm.group_id = gt.group_id
+                WHERE gt.id = %s
+                  AND gm.user_email = %s
+                """,
+                (
+                    thread_id,
+                    data.user_email,
+                )
+            )
+
+        if cur.fetchone() is None:
+
+            raise HTTPException(
+                status_code=403,
+                detail="poll not available"
+            )
+
+        cur.execute(
+            """
+            SELECT id
+            FROM dm_poll_options
+            WHERE poll_id = %s
+              AND id = ANY(%s)
+            """,
+            (
+                poll_id,
+                option_ids,
+            )
+        )
+
+        valid_option_ids = [row[0] for row in cur.fetchall()]
+
+        if len(valid_option_ids) != len(option_ids):
+
+            raise HTTPException(
+                status_code=400,
+                detail="invalid option"
+            )
+
+        cur.execute(
+            """
+            DELETE FROM dm_poll_votes
+            WHERE poll_id = %s
+              AND user_email = %s
+            """,
+            (
+                poll_id,
+                data.user_email,
+            )
+        )
+
+        for option_id in valid_option_ids:
+
+            cur.execute(
+                """
+                INSERT INTO dm_poll_votes (poll_id, option_id, user_email)
+                VALUES (%s, %s, %s)
+                """,
+                (
+                    poll_id,
+                    option_id,
+                    data.user_email,
+                )
+            )
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "status": "ok"
     }
 
 

@@ -8,12 +8,11 @@ class NewOrLoginPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const dark = Color(0xFF15110E);
-    const gold = Color(0xFFC7A15B);
-    const ivory = Color(0xFFFFFCF7);
+    const softGray = Color(0xFFF4F0EC);
+    const softOrange = Color(0xFFFFEFE3);
 
     return Scaffold(
-      backgroundColor: dark,
+      backgroundColor: softGray,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -29,16 +28,17 @@ class NewOrLoginPage extends StatelessWidget {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        width: 42,
-                        height: 42,
+                        width: 46,
+                        height: 46,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: gold, width: 1.2),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: foodLine),
                         ),
                         child: const Icon(
                           Icons.restaurant_menu,
-                          color: gold,
-                          size: 20,
+                          color: foodPrimary,
+                          size: 22,
                         ),
                       ),
                     ),
@@ -46,7 +46,7 @@ class NewOrLoginPage extends StatelessWidget {
                     const Text(
                       'Food Share',
                       style: TextStyle(
-                        color: ivory,
+                        color: foodInk,
                         fontSize: 42,
                         fontWeight: FontWeight.w900,
                         height: 1.05,
@@ -56,7 +56,7 @@ class NewOrLoginPage extends StatelessWidget {
                     const Text(
                       '記憶に残る一皿と、信頼できる人の店選びをひとつに。',
                       style: TextStyle(
-                        color: Color(0xFFD8CEC2),
+                        color: foodMuted,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         height: 1.55,
@@ -67,7 +67,7 @@ class NewOrLoginPage extends StatelessWidget {
                       height: 1,
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [gold, Color(0x0015110E)],
+                          colors: [foodPrimary, Color(0x00E97132)],
                         ),
                       ),
                     ),
@@ -75,14 +75,14 @@ class NewOrLoginPage extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: ivory,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE8DED5)),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: foodLine),
                         boxShadow: const [
                           BoxShadow(
-                            color: Color(0x33000000),
-                            blurRadius: 28,
-                            offset: Offset(0, 18),
+                            color: Color(0x1A241812),
+                            blurRadius: 24,
+                            offset: Offset(0, 12),
                           ),
                         ],
                       ),
@@ -99,8 +99,8 @@ class NewOrLoginPage extends StatelessWidget {
                               );
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: dark,
-                              foregroundColor: ivory,
+                              backgroundColor: foodPrimary,
+                              foregroundColor: Colors.white,
                               minimumSize: const Size.fromHeight(52),
                             ),
                             icon: const Icon(Icons.person_add_alt_1),
@@ -117,7 +117,8 @@ class NewOrLoginPage extends StatelessWidget {
                               );
                             },
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: dark,
+                              foregroundColor: foodInk,
+                              backgroundColor: softOrange,
                               minimumSize: const Size.fromHeight(52),
                               side: const BorderSide(color: foodLine),
                             ),
@@ -132,7 +133,7 @@ class NewOrLoginPage extends StatelessWidget {
                       'Curated by people, not noise.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Color(0xFF9B8D7C),
+                        color: foodMuted,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),

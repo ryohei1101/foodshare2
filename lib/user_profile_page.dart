@@ -369,7 +369,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final isFilteringPosts = _hasActivePostFilters;
 
     return Scaffold(
-      appBar: AppBar(title: Text(displayName), elevation: 0),
+      appBar: AppBar(elevation: 0),
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
         child: NotificationListener<OverscrollNotification>(
@@ -542,15 +542,17 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                           ),
                                         ],
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.grid_on, size: 15),
-                                    SizedBox(width: 8),
+                                    const Icon(Icons.grid_on, size: 15),
+                                    const SizedBox(width: 8),
                                     Text(
                                       '投稿',
                                       style: TextStyle(
-                                        color: foodInk,
+                                        color: isFilteringPosts
+                                            ? foodInk
+                                            : foodPrimary,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),

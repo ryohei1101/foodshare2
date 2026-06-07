@@ -530,15 +530,17 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                                           ),
                                         ],
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.grid_on, size: 15),
-                                    SizedBox(width: 8),
+                                    const Icon(Icons.grid_on, size: 15),
+                                    const SizedBox(width: 8),
                                     Text(
                                       '投稿',
                                       style: TextStyle(
-                                        color: foodInk,
+                                        color: isFilteringPosts
+                                            ? foodInk
+                                            : foodPrimary,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),

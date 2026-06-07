@@ -143,6 +143,13 @@ def ensure_groups_tables():
 
     cur.execute(
         """
+        CREATE UNIQUE INDEX IF NOT EXISTS groups_owner_name_unique
+        ON groups (owner_email, name)
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS group_members (
             group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
             user_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
@@ -1190,6 +1197,26 @@ def create_group(data: CreateGroupRequest):
 
         cur.execute(
             """
+            SELECT 1
+            FROM groups
+            WHERE owner_email = %s
+              AND name = %s
+            """,
+            (
+                data.owner_email,
+                group_name,
+            )
+        )
+
+        if cur.fetchone() is not None:
+
+            raise HTTPException(
+                status_code=409,
+                detail="既にその名前を使用しています"
+            )
+
+        cur.execute(
+            """
             INSERT INTO groups (name, owner_email)
             VALUES (%s, %s)
             RETURNING id, created_at
@@ -1217,6 +1244,12 @@ def create_group(data: CreateGroupRequest):
             )
 
         conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
 
     except Exception as e:
 

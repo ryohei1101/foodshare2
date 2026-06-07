@@ -559,9 +559,15 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
     });
 
     if (response.statusCode != 200) {
+      var message = 'グループを作成できませんでした';
+      try {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        message = data['detail'] as String? ?? message;
+      } catch (_) {}
+
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('グループを作成できませんでした')));
+      ).showSnackBar(SnackBar(content: Text(message)));
       return;
     }
 

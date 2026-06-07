@@ -24,7 +24,6 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
   @override
   void initState() {
     super.initState();
-    _usersFuture = _fetchUsers();
     _queryController.addListener(_scheduleSearch);
   }
 
@@ -64,8 +63,9 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
 
   void _search() {
     _searchDebounce?.cancel();
+    final query = _queryController.text.trim();
     setState(() {
-      _usersFuture = _fetchUsers();
+      _usersFuture = query.isEmpty ? null : _fetchUsers();
     });
   }
 
@@ -104,15 +104,6 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'アカウント検索',
-                style: TextStyle(
-                  color: foodInk,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 12),
               SizedBox(
                 height: 54,
                 child: TextField(
@@ -141,71 +132,82 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
               ),
               const SizedBox(height: 8),
               Expanded(
-                child: FutureBuilder<List<FoodUser>>(
-                  future: _usersFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              size: 48,
-                              color: foodMuted,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              snapshot.error.toString(),
-                              style: const TextStyle(color: foodMuted),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    final users = snapshot.data ?? [];
-
-                    if (users.isEmpty) {
-                      return const Center(
+                child: _usersFuture == null
+                    ? const Center(
                         child: Text(
-                          '該当するアカウントがありません',
+                          'ユーザーIDを入力してください',
                           style: TextStyle(color: foodMuted),
                         ),
-                      );
-                    }
+                      )
+                    : FutureBuilder<List<FoodUser>>(
+                        future: _usersFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
 
-                    return ListView.separated(
-                      padding: const EdgeInsets.only(bottom: 24),
-                      itemCount: users.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final user = users[index];
-
-                        return _AccountSearchRow(
-                          user: user,
-                          onFollowPressed: () => _toggleFollow(user),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => UserProfilePage(
-                                  targetUser: user,
-                                  currentEmail: widget.currentEmail,
-                                ),
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.error_outline,
+                                    size: 48,
+                                    color: foodMuted,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    snapshot.error.toString(),
+                                    style: const TextStyle(color: foodMuted),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
                               ),
-                            ).then((_) => _search());
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
+                            );
+                          }
+
+                          final users = snapshot.data ?? [];
+
+                          if (users.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                '該当するアカウントがありません',
+                                style: TextStyle(color: foodMuted),
+                              ),
+                            );
+                          }
+
+                          return ListView.separated(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            itemCount: users.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final user = users[index];
+
+                              return _AccountSearchRow(
+                                user: user,
+                                onFollowPressed: () => _toggleFollow(user),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => UserProfilePage(
+                                        targetUser: user,
+                                        currentEmail: widget.currentEmail,
+                                      ),
+                                    ),
+                                  ).then((_) => _search());
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -280,11 +282,18 @@ class _AccountSearchRow extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             SizedBox(
-              width: 96,
+              width: 112,
               height: 38,
               child: OutlinedButton(
                 onPressed: onFollowPressed,
-                child: Text(user.isFollowing ? '解除' : 'フォロー'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                child: FittedBox(child: Text(user.isFollowing ? '解除' : 'フォロー')),
               ),
             ),
           ],

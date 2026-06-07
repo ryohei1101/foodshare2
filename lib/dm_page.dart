@@ -227,15 +227,6 @@ class _DmPageState extends State<DmPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'メッセージ',
-                style: TextStyle(
-                  color: foodInk,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 12),
               SizedBox(
                 height: 54,
                 child: TextField(

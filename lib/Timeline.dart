@@ -299,30 +299,38 @@ class _TimeLinePageState extends State<TimeLinePage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Timeline"),
-        actions: [
-          IconButton(
-            tooltip: '条件で探す',
-            onPressed: _showFilterSheet,
-            icon: Icon(
-              _hasActiveFilters ? Icons.manage_search : Icons.search,
-              color: _hasActiveFilters ? foodPrimary : null,
-            ),
+        toolbarHeight: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Row(
+            children: [
+              Expanded(
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: foodPrimary,
+                  unselectedLabelColor: foodMuted,
+                  indicatorColor: foodPrimary,
+                  labelStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  tabs: const [
+                    Tab(text: "おすすめ"),
+                    Tab(text: "フォロー中"),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: '条件で探す',
+                onPressed: _showFilterSheet,
+                icon: Icon(
+                  _hasActiveFilters ? Icons.manage_search : Icons.search,
+                  color: _hasActiveFilters ? foodPrimary : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: foodPrimary,
-          unselectedLabelColor: foodMuted,
-          indicatorColor: foodPrimary,
-          labelStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-          ),
-          tabs: const [
-            Tab(text: "おすすめ"),
-            Tab(text: "フォロー中"),
-          ],
         ),
       ),
       body: TabBarView(

@@ -403,6 +403,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final isFilteringPosts = _hasActivePostFilters;
+
     return Scaffold(
       appBar: AppBar(elevation: 0, toolbarHeight: 0),
       body: RefreshIndicator(
@@ -509,18 +511,24 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                               child: Container(
                                 height: double.infinity,
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: isFilteringPosts
+                                      ? Colors.transparent
+                                      : Colors.white,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(0xFFBFC0C4),
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Color(0x1A000000),
-                                      blurRadius: 3,
-                                      offset: Offset(0, 1),
-                                    ),
-                                  ],
+                                  border: isFilteringPosts
+                                      ? null
+                                      : Border.all(
+                                          color: const Color(0xFFBFC0C4),
+                                        ),
+                                  boxShadow: isFilteringPosts
+                                      ? null
+                                      : const [
+                                          BoxShadow(
+                                            color: Color(0x1A000000),
+                                            blurRadius: 3,
+                                            offset: Offset(0, 1),
+                                          ),
+                                        ],
                                 ),
                                 child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -539,32 +547,55 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                               ),
                             ),
                             Expanded(
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: _showPostFilterSheet,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      _hasActivePostFilters
-                                          ? Icons.manage_search
-                                          : Icons.search,
-                                      color: _hasActivePostFilters
-                                          ? foodPrimary
-                                          : foodInk,
-                                      size: 17,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '絞り込み',
-                                      style: TextStyle(
-                                        color: _hasActivePostFilters
+                              child: Container(
+                                height: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: isFilteringPosts
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: isFilteringPosts
+                                      ? Border.all(
+                                          color: const Color(0xFFBFC0C4),
+                                        )
+                                      : null,
+                                  boxShadow: isFilteringPosts
+                                      ? const [
+                                          BoxShadow(
+                                            color: Color(0x1A000000),
+                                            blurRadius: 3,
+                                            offset: Offset(0, 1),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: _showPostFilterSheet,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        isFilteringPosts
+                                            ? Icons.manage_search
+                                            : Icons.search,
+                                        color: isFilteringPosts
                                             ? foodPrimary
                                             : foodInk,
-                                        fontWeight: FontWeight.w800,
+                                        size: 17,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '絞り込み',
+                                        style: TextStyle(
+                                          color: isFilteringPosts
+                                              ? foodPrimary
+                                              : foodInk,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

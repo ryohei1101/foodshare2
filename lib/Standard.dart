@@ -120,7 +120,7 @@ class _InstaHomeState extends State<InstaHome> {
 
         destinations: [
           const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
+            icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: '地図',
           ),

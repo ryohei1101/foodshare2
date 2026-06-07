@@ -63,6 +63,34 @@ class _GroupListPageState extends State<GroupListPage>
     });
   }
 
+  Future<bool> _deleteGroup(FoodGroup group) async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/groups/${group.id}'
+      '?email=${Uri.encodeComponent(widget.email)}',
+    );
+    final response = await http.delete(uri);
+
+    if (!mounted) return false;
+
+    if (response.statusCode != 200) {
+      var message = 'グループを削除できませんでした';
+      try {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        message = data['detail'] as String? ?? message;
+      } catch (_) {}
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      return false;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('${group.name}を削除しました')));
+    return true;
+  }
+
   Future<void> _openCreateGroupPage() async {
     final created = await Navigator.push<bool>(
       context,
@@ -121,30 +149,42 @@ class _GroupListPageState extends State<GroupListPage>
             itemBuilder: (context, index) {
               final group = groups[index];
 
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                leading: const CircleAvatar(
-                  backgroundColor: Color(0xFFFFEFE3),
-                  child: Icon(Icons.groups_2_outlined, color: foodPrimary),
+              return Dismissible(
+                key: ValueKey('group-${group.id}'),
+                direction: DismissDirection.startToEnd,
+                confirmDismiss: (_) => _deleteGroup(group),
+                onDismissed: (_) => _reloadGroups(),
+                background: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  color: Colors.redAccent,
+                  child: const Icon(Icons.delete_outline, color: Colors.white),
                 ),
-                title: Text(
-                  group.name,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                subtitle: Text('${group.memberCount}人のメンバー'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => GroupDetailPage(
-                        group: group,
-                        currentEmail: widget.email,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFFFEFE3),
+                    child: Icon(Icons.groups_2_outlined, color: foodPrimary),
+                  ),
+                  title: Text(
+                    group.name,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  subtitle: Text('${group.memberCount}人のメンバー'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GroupDetailPage(
+                          group: group,
+                          currentEmail: widget.email,
+                        ),
                       ),
-                    ),
-                  );
-                  _reloadGroups();
-                },
+                    );
+                    _reloadGroups();
+                  },
+                ),
               );
             },
           );

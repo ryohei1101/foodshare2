@@ -1328,6 +1328,115 @@ def get_group_members(
     }
 
 
+@app.delete("/groups/{group_id}")
+def delete_group(
+    group_id: int,
+    email: str
+):
+
+    ensure_groups_tables()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute(
+            """
+            SELECT owner_email
+            FROM groups
+            WHERE id = %s
+            """,
+            (
+                group_id,
+            )
+        )
+
+        row = cur.fetchone()
+
+        if row is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail="group not found"
+            )
+
+        owner_email = row[0]
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM group_members
+            WHERE group_id = %s
+              AND user_email = %s
+            """,
+            (
+                group_id,
+                email,
+            )
+        )
+
+        if cur.fetchone() is None:
+
+            raise HTTPException(
+                status_code=403,
+                detail="not a group member"
+            )
+
+        if owner_email == email:
+
+            cur.execute(
+                """
+                DELETE FROM groups
+                WHERE id = %s
+                """,
+                (
+                    group_id,
+                )
+            )
+
+        else:
+
+            cur.execute(
+                """
+                DELETE FROM group_members
+                WHERE group_id = %s
+                  AND user_email = %s
+                """,
+                (
+                    group_id,
+                    email,
+                )
+            )
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "status": "ok"
+    }
+
+
 @app.post("/groups/{group_id}/members")
 def add_group_members(
     group_id: int,

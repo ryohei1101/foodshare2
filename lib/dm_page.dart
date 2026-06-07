@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/map_selection_store.dart';
 import 'package:foodshare/user_model.dart';
 import 'package:http/http.dart' as http;
 
@@ -19,7 +20,7 @@ class _DmPageState extends State<DmPage> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   late Future<List<DmThread>> _threadsFuture;
-  Future<List<FoodUser>>? _suggestionsFuture;
+  Future<List<DmCandidate>>? _suggestionsFuture;
 
   @override
   void initState() {
@@ -55,7 +56,7 @@ class _DmPageState extends State<DmPage> {
         .toList();
   }
 
-  Future<List<FoodUser>> _fetchSuggestions() async {
+  Future<List<DmCandidate>> _fetchSuggestions() async {
     final query = _searchController.text.trim();
     final uri = Uri.http('10.0.2.2:8000', '/dm/search-users', {
       'email': widget.currentEmail,
@@ -70,10 +71,17 @@ class _DmPageState extends State<DmPage> {
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final users = data['users'] as List<dynamic>? ?? [];
+    final groups = data['groups'] as List<dynamic>? ?? [];
 
-    return users
-        .map((user) => FoodUser.fromJson(user as Map<String, dynamic>))
-        .toList();
+    return [
+      ...users.map(
+        (user) =>
+            DmCandidate.user(FoodUser.fromJson(user as Map<String, dynamic>)),
+      ),
+      ...groups.map(
+        (group) => DmCandidate.group(group as Map<String, dynamic>),
+      ),
+    ];
   }
 
   void _scheduleSuggestionSearch() {
@@ -94,14 +102,24 @@ class _DmPageState extends State<DmPage> {
     await nextThreads;
   }
 
-  Future<void> _openThreadWithUser(FoodUser user) async {
+  Future<void> _openThreadWithCandidate(DmCandidate candidate) async {
+    final uri = candidate.isGroup
+        ? Uri.parse('http://10.0.2.2:8000/dm/group-threads')
+        : Uri.parse('http://10.0.2.2:8000/dm/threads');
     final response = await http.post(
-      Uri.parse('http://10.0.2.2:8000/dm/threads'),
+      uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'current_email': widget.currentEmail,
-        'target_email': user.email,
-      }),
+      body: jsonEncode(
+        candidate.isGroup
+            ? {
+                'current_email': widget.currentEmail,
+                'group_id': candidate.groupId,
+              }
+            : {
+                'current_email': widget.currentEmail,
+                'target_email': candidate.user!.email,
+              },
+      ),
     );
 
     if (!mounted) return;
@@ -122,7 +140,10 @@ class _DmPageState extends State<DmPage> {
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final thread = DmThread(
       id: data['id'] as int? ?? 0,
-      otherUser: user,
+      threadType: candidate.isGroup ? 'group' : 'direct',
+      otherUser: candidate.user,
+      groupName: candidate.isGroup ? candidate.title : '',
+      groupMemberCount: candidate.memberCount,
       lastMessage: '',
       lastMessageAt: data['updated_at'] as String? ?? '',
       updatedAt: data['updated_at'] as String? ?? '',
@@ -149,6 +170,48 @@ class _DmPageState extends State<DmPage> {
       ),
     );
     await _reloadThreads();
+  }
+
+  Future<bool> _deleteThread(DmThread thread) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('DMを削除しますか？'),
+        content: Text('${thread.displayName}とのDMを一覧から削除します。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return false;
+
+    final uri = Uri.http('10.0.2.2:8000', '/dm/threads/${thread.id}', {
+      'email': widget.currentEmail,
+      'thread_type': thread.threadType,
+    });
+    final response = await http.delete(uri);
+
+    if (!mounted) return false;
+
+    if (response.statusCode != 200) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('DMを削除できませんでした')));
+      return false;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('DMを削除しました')));
+    return true;
   }
 
   @override
@@ -205,11 +268,12 @@ class _DmPageState extends State<DmPage> {
                 child: hasQuery
                     ? _SuggestionList(
                         suggestionsFuture: _suggestionsFuture,
-                        onUserPressed: _openThreadWithUser,
+                        onCandidatePressed: _openThreadWithCandidate,
                       )
                     : _ThreadList(
                         threadsFuture: _threadsFuture,
                         onThreadPressed: _openThread,
+                        onThreadDeleted: _deleteThread,
                         onRefresh: _reloadThreads,
                       ),
               ),
@@ -256,7 +320,7 @@ class _DmThreadPageState extends State<DmThreadPage> {
     final uri = Uri.http(
       '10.0.2.2:8000',
       '/dm/threads/${widget.thread.id}/messages',
-      {'email': widget.currentEmail},
+      {'email': widget.currentEmail, 'thread_type': widget.thread.threadType},
     );
     final response = await http.get(uri);
 
@@ -287,7 +351,9 @@ class _DmThreadPageState extends State<DmThreadPage> {
     });
 
     final response = await http.post(
-      Uri.parse('http://10.0.2.2:8000/dm/threads/${widget.thread.id}/messages'),
+      Uri.http('10.0.2.2:8000', '/dm/threads/${widget.thread.id}/messages', {
+        'thread_type': widget.thread.threadType,
+      }),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'sender_email': widget.currentEmail, 'body': body}),
     );
@@ -309,14 +375,108 @@ class _DmThreadPageState extends State<DmThreadPage> {
     _reloadMessages();
   }
 
+  Future<void> _sendPoll() async {
+    final selections = MapSelectionStore.pollSelections.value;
+
+    if (selections.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('地図でアンケート候補を選択してください')));
+      return;
+    }
+
+    final selectedKeys = <String>{};
+    final chosen = await showModalBottomSheet<List<MapShopSelection>>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'アンケート店舗を選択',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: selections.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final selection = selections[index];
+                          final selected = selectedKeys.contains(selection.key);
+
+                          return CheckboxListTile(
+                            value: selected,
+                            onChanged: (value) {
+                              setSheetState(() {
+                                if (value == true) {
+                                  selectedKeys.add(selection.key);
+                                } else {
+                                  selectedKeys.remove(selection.key);
+                                }
+                              });
+                            },
+                            title: Text(selection.shopName),
+                            subtitle: Text(selection.location),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: selectedKeys.isEmpty
+                          ? null
+                          : () {
+                              Navigator.pop(
+                                context,
+                                selections
+                                    .where(
+                                      (selection) =>
+                                          selectedKeys.contains(selection.key),
+                                    )
+                                    .toList(),
+                              );
+                            },
+                      icon: const Icon(Icons.how_to_vote),
+                      label: const Text('アンケートを送信'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (chosen == null || chosen.isEmpty) return;
+
+    final body = [
+      '[アンケート]',
+      '行きたい店舗を選んでください',
+      for (var i = 0; i < chosen.length; i++)
+        '${i + 1}. ${chosen[i].shopName} - ${chosen[i].location}',
+    ].join('\n');
+
+    _messageController.text = body;
+    await _sendMessage();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final displayName = widget.thread.otherUser.username.isEmpty
-        ? widget.thread.otherUser.email
-        : widget.thread.otherUser.username;
-
     return Scaffold(
-      appBar: AppBar(title: Text(displayName)),
+      appBar: AppBar(title: Text(widget.thread.displayName)),
       body: Column(
         children: [
           Expanded(
@@ -420,6 +580,12 @@ class _DmThreadPageState extends State<DmThreadPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'アンケート',
+                    onPressed: _sendPoll,
+                    icon: const Icon(Icons.how_to_vote_outlined),
+                  ),
+                  const SizedBox(width: 4),
                   IconButton.filled(
                     onPressed: _isSending ? null : _sendMessage,
                     icon: _isSending
@@ -443,15 +609,15 @@ class _DmThreadPageState extends State<DmThreadPage> {
 class _SuggestionList extends StatelessWidget {
   const _SuggestionList({
     required this.suggestionsFuture,
-    required this.onUserPressed,
+    required this.onCandidatePressed,
   });
 
-  final Future<List<FoodUser>>? suggestionsFuture;
-  final ValueChanged<FoodUser> onUserPressed;
+  final Future<List<DmCandidate>>? suggestionsFuture;
+  final ValueChanged<DmCandidate> onCandidatePressed;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<FoodUser>>(
+    return FutureBuilder<List<DmCandidate>>(
       future: suggestionsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -467,12 +633,12 @@ class _SuggestionList extends StatelessWidget {
           );
         }
 
-        final users = snapshot.data ?? [];
+        final candidates = snapshot.data ?? [];
 
-        if (users.isEmpty) {
+        if (candidates.isEmpty) {
           return const Center(
             child: Text(
-              'DMできるフォロー中アカウントがありません',
+              'DMできるアカウント/グループがありません',
               style: TextStyle(color: foodMuted),
             ),
           );
@@ -480,14 +646,16 @@ class _SuggestionList extends StatelessWidget {
 
         return ListView.separated(
           padding: const EdgeInsets.only(bottom: 24),
-          itemCount: users.length,
+          itemCount: candidates.length,
           separatorBuilder: (_, __) => const Divider(height: 1),
           itemBuilder: (context, index) {
-            final user = users[index];
-            return _UserRow(
-              user: user,
+            final candidate = candidates[index];
+            return _DmRow(
+              title: candidate.title,
+              subtitle: candidate.subtitle,
+              isGroup: candidate.isGroup,
               trailing: const Icon(Icons.chat_bubble_outline),
-              onPressed: () => onUserPressed(user),
+              onPressed: () => onCandidatePressed(candidate),
             );
           },
         );
@@ -500,11 +668,13 @@ class _ThreadList extends StatelessWidget {
   const _ThreadList({
     required this.threadsFuture,
     required this.onThreadPressed,
+    required this.onThreadDeleted,
     required this.onRefresh,
   });
 
   final Future<List<DmThread>> threadsFuture;
   final ValueChanged<DmThread> onThreadPressed;
+  final Future<bool> Function(DmThread) onThreadDeleted;
   final Future<void> Function() onRefresh;
 
   @override
@@ -541,13 +711,26 @@ class _ThreadList extends StatelessWidget {
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final thread = threads[index];
-              return _UserRow(
-                user: thread.otherUser,
-                subtitle: thread.lastMessage.isEmpty
-                    ? 'メッセージを開始'
-                    : thread.lastMessage,
-                trailing: const Icon(Icons.chevron_right),
-                onPressed: () => onThreadPressed(thread),
+              return Dismissible(
+                key: ValueKey('${thread.threadType}-${thread.id}'),
+                direction: DismissDirection.startToEnd,
+                confirmDismiss: (_) => onThreadDeleted(thread),
+                onDismissed: (_) => onRefresh(),
+                background: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  color: Colors.redAccent,
+                  child: const Icon(Icons.delete_outline, color: Colors.white),
+                ),
+                child: _DmRow(
+                  title: thread.displayName,
+                  subtitle: thread.lastMessage.isEmpty
+                      ? 'メッセージを開始'
+                      : thread.lastMessage,
+                  isGroup: thread.isGroup,
+                  trailing: const Icon(Icons.chevron_right),
+                  onPressed: () => onThreadPressed(thread),
+                ),
               );
             },
           ),
@@ -557,44 +740,35 @@ class _ThreadList extends StatelessWidget {
   }
 }
 
-class _UserRow extends StatelessWidget {
-  const _UserRow({
-    required this.user,
+class _DmRow extends StatelessWidget {
+  const _DmRow({
+    required this.title,
     required this.onPressed,
+    required this.isGroup,
     this.subtitle,
     this.trailing,
   });
 
-  final FoodUser user;
+  final String title;
   final VoidCallback onPressed;
+  final bool isGroup;
   final String? subtitle;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    final displayName = user.username.isEmpty ? user.email : user.username;
-
     return InkWell(
       onTap: onPressed,
       child: SizedBox(
         height: 76,
         child: Row(
           children: [
-            ClipOval(
-              child: Image.network(
-                user.profileImageUrl,
-                width: 46,
-                height: 46,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) {
-                  return Container(
-                    width: 46,
-                    height: 46,
-                    color: foodLine,
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.person, color: foodMuted),
-                  );
-                },
+            CircleAvatar(
+              radius: 23,
+              backgroundColor: isGroup ? const Color(0xFFFFEFE3) : foodLine,
+              child: Icon(
+                isGroup ? Icons.groups_2_outlined : Icons.person,
+                color: isGroup ? foodPrimary : foodMuted,
               ),
             ),
             const SizedBox(width: 12),
@@ -604,7 +778,7 @@ class _UserRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    displayName,
+                    title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -614,7 +788,7 @@ class _UserRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    subtitle ?? user.email,
+                    subtitle ?? '',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: foodMuted, fontSize: 12),
@@ -633,28 +807,99 @@ class _UserRow extends StatelessWidget {
 class DmThread {
   const DmThread({
     required this.id,
+    required this.threadType,
     required this.otherUser,
+    required this.groupName,
+    required this.groupMemberCount,
     required this.lastMessage,
     required this.lastMessageAt,
     required this.updatedAt,
   });
 
   final int id;
-  final FoodUser otherUser;
+  final String threadType;
+  final FoodUser? otherUser;
+  final String groupName;
+  final int groupMemberCount;
   final String lastMessage;
   final String lastMessageAt;
   final String updatedAt;
 
+  bool get isGroup => threadType == 'group';
+
+  String get displayName {
+    if (isGroup) return groupName;
+    final user = otherUser;
+    if (user == null) return '';
+    return user.username.isEmpty ? user.email : user.username;
+  }
+
   factory DmThread.fromJson(Map<String, dynamic> json) {
+    final threadType = json['thread_type'] as String? ?? 'direct';
+    final group = json['group'] as Map<String, dynamic>? ?? {};
+
     return DmThread(
       id: json['id'] as int? ?? 0,
-      otherUser: FoodUser.fromJson(
-        json['other_user'] as Map<String, dynamic>? ?? {},
-      ),
+      threadType: threadType,
+      otherUser: threadType == 'group'
+          ? null
+          : FoodUser.fromJson(
+              json['other_user'] as Map<String, dynamic>? ?? {},
+            ),
+      groupName: group['name'] as String? ?? '',
+      groupMemberCount: group['member_count'] as int? ?? 0,
       lastMessage: json['last_message'] as String? ?? '',
       lastMessageAt: json['last_message_at'] as String? ?? '',
       updatedAt: json['updated_at'] as String? ?? '',
     );
+  }
+}
+
+class DmCandidate {
+  const DmCandidate._({
+    required this.isGroup,
+    required this.user,
+    required this.groupId,
+    required this.groupName,
+    required this.memberCount,
+  });
+
+  factory DmCandidate.user(FoodUser user) {
+    return DmCandidate._(
+      isGroup: false,
+      user: user,
+      groupId: 0,
+      groupName: '',
+      memberCount: 0,
+    );
+  }
+
+  factory DmCandidate.group(Map<String, dynamic> json) {
+    return DmCandidate._(
+      isGroup: true,
+      user: null,
+      groupId: json['id'] as int? ?? 0,
+      groupName: json['name'] as String? ?? '',
+      memberCount: json['member_count'] as int? ?? 0,
+    );
+  }
+
+  final bool isGroup;
+  final FoodUser? user;
+  final int groupId;
+  final String groupName;
+  final int memberCount;
+
+  String get title {
+    if (isGroup) return groupName;
+    final foodUser = user;
+    if (foodUser == null) return '';
+    return foodUser.username.isEmpty ? foodUser.email : foodUser.username;
+  }
+
+  String get subtitle {
+    if (isGroup) return '$memberCount人のグループ';
+    return user?.email ?? '';
   }
 }
 

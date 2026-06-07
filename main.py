@@ -167,6 +167,8 @@ def ensure_groups_tables():
 
 def ensure_dm_tables():
 
+    ensure_groups_tables()
+
     conn = get_db_connection()
 
     cur = conn.cursor()
@@ -193,6 +195,42 @@ def ensure_dm_tables():
             sender_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
             body TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dm_group_threads (
+            id SERIAL PRIMARY KEY,
+            group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE (group_id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dm_group_messages (
+            id SERIAL PRIMARY KEY,
+            thread_id INTEGER NOT NULL REFERENCES dm_group_threads(id) ON DELETE CASCADE,
+            sender_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            body TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dm_hidden_threads (
+            thread_type TEXT NOT NULL,
+            thread_id INTEGER NOT NULL,
+            user_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            hidden_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (thread_type, thread_id, user_email)
         )
         """
     )
@@ -463,6 +501,12 @@ class CreateDmThreadRequest(BaseModel):
 
     current_email: str
     target_email: str
+
+
+class CreateGroupDmThreadRequest(BaseModel):
+
+    current_email: str
+    group_id: int
 
 
 class SendDmMessageRequest(BaseModel):
@@ -1145,6 +1189,7 @@ def search_dm_users(
 ):
 
     ensure_follows_table()
+    ensure_groups_tables()
 
     search_query = query.strip()
     safe_limit = max(1, min(limit, 50))
@@ -1188,6 +1233,45 @@ def search_dm_users(
 
     rows = cur.fetchall()
 
+    group_params = [
+        email,
+    ]
+
+    group_query_clause = ""
+
+    if search_query:
+
+        group_query_clause = "AND g.name ILIKE %s"
+
+        group_params.append(f"%{search_query}%")
+
+    group_params.append(safe_limit)
+
+    cur.execute(
+        f"""
+        SELECT
+            g.id,
+            g.name,
+            g.owner_email,
+            g.created_at,
+            COUNT(gm_all.user_email) AS member_count
+        FROM groups g
+        JOIN group_members gm_me
+          ON gm_me.group_id = g.id
+         AND gm_me.user_email = %s
+        LEFT JOIN group_members gm_all
+          ON gm_all.group_id = g.id
+        WHERE 1 = 1
+          {group_query_clause}
+        GROUP BY g.id, g.name, g.owner_email, g.created_at
+        ORDER BY g.created_at DESC, g.id DESC
+        LIMIT %s
+        """,
+        tuple(group_params)
+    )
+
+    group_rows = cur.fetchall()
+
     cur.close()
     conn.close()
 
@@ -1200,7 +1284,17 @@ def search_dm_users(
                 "is_following": row[3],
             }
             for row in rows
-        ]
+        ],
+        "groups": [
+            {
+                "id": row[0],
+                "name": row[1],
+                "owner_email": row[2],
+                "created_at": row[3].isoformat() if row[3] else "",
+                "member_count": row[4],
+            }
+            for row in group_rows
+        ],
     }
 
 
@@ -1236,11 +1330,18 @@ def get_dm_threads(email: str):
             ORDER BY m.created_at DESC, m.id DESC
             LIMIT 1
         ) last_message ON TRUE
-        WHERE t.user_one_email = %s
-           OR t.user_two_email = %s
+        WHERE (t.user_one_email = %s OR t.user_two_email = %s)
+          AND NOT EXISTS (
+              SELECT 1
+              FROM dm_hidden_threads h
+              WHERE h.thread_type = 'direct'
+                AND h.thread_id = t.id
+                AND h.user_email = %s
+          )
         ORDER BY COALESCE(last_message.created_at, t.updated_at) DESC, t.id DESC
         """,
         (
+            email,
             email,
             email,
             email,
@@ -1249,13 +1350,56 @@ def get_dm_threads(email: str):
 
     rows = cur.fetchall()
 
+    cur.execute(
+        """
+        SELECT
+            gt.id,
+            gt.updated_at,
+            g.id,
+            g.name,
+            COUNT(gm_all.user_email) AS member_count,
+            last_message.body,
+            last_message.created_at
+        FROM dm_group_threads gt
+        JOIN groups g ON g.id = gt.group_id
+        JOIN group_members gm_me
+          ON gm_me.group_id = g.id
+         AND gm_me.user_email = %s
+        LEFT JOIN group_members gm_all
+          ON gm_all.group_id = g.id
+        LEFT JOIN LATERAL (
+            SELECT body, created_at
+            FROM dm_group_messages m
+            WHERE m.thread_id = gt.id
+            ORDER BY m.created_at DESC, m.id DESC
+            LIMIT 1
+        ) last_message ON TRUE
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM dm_hidden_threads h
+            WHERE h.thread_type = 'group'
+              AND h.thread_id = gt.id
+              AND h.user_email = %s
+        )
+        GROUP BY gt.id, gt.updated_at, g.id, g.name, last_message.body, last_message.created_at
+        ORDER BY COALESCE(last_message.created_at, gt.updated_at) DESC, gt.id DESC
+        """,
+        (
+            email,
+            email,
+        )
+    )
+
+    group_rows = cur.fetchall()
+
     cur.close()
     conn.close()
 
     return {
-        "threads": [
+        "threads": sorted([
             {
                 "id": row[0],
+                "thread_type": "direct",
                 "updated_at": row[1].isoformat() if row[1] else "",
                 "other_user": {
                     "username": row[2],
@@ -1267,7 +1411,21 @@ def get_dm_threads(email: str):
                 "last_message_at": row[6].isoformat() if row[6] else "",
             }
             for row in rows
-        ]
+        ] + [
+            {
+                "id": row[0],
+                "thread_type": "group",
+                "updated_at": row[1].isoformat() if row[1] else "",
+                "group": {
+                    "id": row[2],
+                    "name": row[3],
+                    "member_count": row[4],
+                },
+                "last_message": row[5] if row[5] else "",
+                "last_message_at": row[6].isoformat() if row[6] else "",
+            }
+            for row in group_rows
+        ], key=lambda thread: thread["last_message_at"] or thread["updated_at"], reverse=True)
     }
 
 
@@ -1331,6 +1489,19 @@ def create_dm_thread(data: CreateDmThreadRequest):
 
         thread_id, updated_at = cur.fetchone()
 
+        cur.execute(
+            """
+            DELETE FROM dm_hidden_threads
+            WHERE thread_type = 'direct'
+              AND thread_id = %s
+              AND user_email = %s
+            """,
+            (
+                thread_id,
+                data.current_email,
+            )
+        )
+
         conn.commit()
 
     except HTTPException:
@@ -1359,10 +1530,201 @@ def create_dm_thread(data: CreateDmThreadRequest):
     }
 
 
+@app.post("/dm/group-threads")
+def create_group_dm_thread(data: CreateGroupDmThreadRequest):
+
+    ensure_dm_tables()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM group_members
+            WHERE group_id = %s
+              AND user_email = %s
+            """,
+            (
+                data.group_id,
+                data.current_email,
+            )
+        )
+
+        if cur.fetchone() is None:
+
+            raise HTTPException(
+                status_code=403,
+                detail="所属しているグループにだけDMできます"
+            )
+
+        cur.execute(
+            """
+            INSERT INTO dm_group_threads (group_id)
+            VALUES (%s)
+            ON CONFLICT (group_id)
+            DO UPDATE SET updated_at = dm_group_threads.updated_at
+            RETURNING id, updated_at
+            """,
+            (
+                data.group_id,
+            )
+        )
+
+        thread_id, updated_at = cur.fetchone()
+
+        cur.execute(
+            """
+            DELETE FROM dm_hidden_threads
+            WHERE thread_type = 'group'
+              AND thread_id = %s
+              AND user_email = %s
+            """,
+            (
+                thread_id,
+                data.current_email,
+            )
+        )
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "id": thread_id,
+        "thread_type": "group",
+        "updated_at": updated_at.isoformat() if updated_at else "",
+    }
+
+
+@app.delete("/dm/threads/{thread_id}")
+def delete_dm_thread(
+    thread_id: int,
+    email: str,
+    thread_type: str = "direct"
+):
+
+    ensure_dm_tables()
+
+    if thread_type not in ["direct", "group"]:
+
+        raise HTTPException(
+            status_code=400,
+            detail="thread_type must be direct or group"
+        )
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    try:
+
+        if thread_type == "direct":
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM dm_threads
+                WHERE id = %s
+                  AND (user_one_email = %s OR user_two_email = %s)
+                """,
+                (
+                    thread_id,
+                    email,
+                    email,
+                )
+            )
+
+        else:
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM dm_group_threads gt
+                JOIN group_members gm ON gm.group_id = gt.group_id
+                WHERE gt.id = %s
+                  AND gm.user_email = %s
+                """,
+                (
+                    thread_id,
+                    email,
+                )
+            )
+
+        if cur.fetchone() is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail="thread not found"
+            )
+
+        cur.execute(
+            """
+            INSERT INTO dm_hidden_threads (thread_type, thread_id, user_email)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (thread_type, thread_id, user_email)
+            DO UPDATE SET hidden_at = NOW()
+            """,
+            (
+                thread_type,
+                thread_id,
+                email,
+            )
+        )
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except Exception as e:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+    return {
+        "status": "ok"
+    }
+
+
 @app.get("/dm/threads/{thread_id}/messages")
 def get_dm_messages(
     thread_id: int,
-    email: str
+    email: str,
+    thread_type: str = "direct"
 ):
 
     ensure_dm_tables()
@@ -1371,19 +1733,47 @@ def get_dm_messages(
 
     cur = conn.cursor()
 
-    cur.execute(
-        """
-        SELECT 1
-        FROM dm_threads
-        WHERE id = %s
-          AND (user_one_email = %s OR user_two_email = %s)
-        """,
-        (
-            thread_id,
-            email,
-            email,
+    if thread_type == "direct":
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM dm_threads
+            WHERE id = %s
+              AND (user_one_email = %s OR user_two_email = %s)
+            """,
+            (
+                thread_id,
+                email,
+                email,
+            )
         )
-    )
+
+    elif thread_type == "group":
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM dm_group_threads gt
+            JOIN group_members gm ON gm.group_id = gt.group_id
+            WHERE gt.id = %s
+              AND gm.user_email = %s
+            """,
+            (
+                thread_id,
+                email,
+            )
+        )
+
+    else:
+
+        cur.close()
+        conn.close()
+
+        raise HTTPException(
+            status_code=400,
+            detail="thread_type must be direct or group"
+        )
 
     if cur.fetchone() is None:
 
@@ -1395,14 +1785,16 @@ def get_dm_messages(
             detail="thread not found"
         )
 
+    message_table = "dm_group_messages" if thread_type == "group" else "dm_messages"
+
     cur.execute(
-        """
+        f"""
         SELECT
             id,
             sender_email,
             body,
             created_at
-        FROM dm_messages
+        FROM {message_table}
         WHERE thread_id = %s
         ORDER BY created_at ASC, id ASC
         """,
@@ -1432,7 +1824,8 @@ def get_dm_messages(
 @app.post("/dm/threads/{thread_id}/messages")
 def send_dm_message(
     thread_id: int,
-    data: SendDmMessageRequest
+    data: SendDmMessageRequest,
+    thread_type: str = "direct"
 ):
 
     ensure_dm_tables()
@@ -1452,19 +1845,50 @@ def send_dm_message(
 
     try:
 
-        cur.execute(
-            """
-            SELECT 1
-            FROM dm_threads
-            WHERE id = %s
-              AND (user_one_email = %s OR user_two_email = %s)
-            """,
-            (
-                thread_id,
-                data.sender_email,
-                data.sender_email,
+        if thread_type == "direct":
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM dm_threads
+                WHERE id = %s
+                  AND (user_one_email = %s OR user_two_email = %s)
+                """,
+                (
+                    thread_id,
+                    data.sender_email,
+                    data.sender_email,
+                )
             )
-        )
+
+            message_table = "dm_messages"
+            thread_table = "dm_threads"
+
+        elif thread_type == "group":
+
+            cur.execute(
+                """
+                SELECT 1
+                FROM dm_group_threads gt
+                JOIN group_members gm ON gm.group_id = gt.group_id
+                WHERE gt.id = %s
+                  AND gm.user_email = %s
+                """,
+                (
+                    thread_id,
+                    data.sender_email,
+                )
+            )
+
+            message_table = "dm_group_messages"
+            thread_table = "dm_group_threads"
+
+        else:
+
+            raise HTTPException(
+                status_code=400,
+                detail="thread_type must be direct or group"
+            )
 
         if cur.fetchone() is None:
 
@@ -1474,8 +1898,8 @@ def send_dm_message(
             )
 
         cur.execute(
-            """
-            INSERT INTO dm_messages (thread_id, sender_email, body)
+            f"""
+            INSERT INTO {message_table} (thread_id, sender_email, body)
             VALUES (%s, %s, %s)
             RETURNING id, created_at
             """,
@@ -1489,8 +1913,8 @@ def send_dm_message(
         message_id, created_at = cur.fetchone()
 
         cur.execute(
-            """
-            UPDATE dm_threads
+            f"""
+            UPDATE {thread_table}
             SET updated_at = NOW()
             WHERE id = %s
             """,

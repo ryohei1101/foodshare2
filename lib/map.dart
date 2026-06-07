@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:foodshare/PostPage.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/map_selection_store.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -76,6 +77,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
   ];
   LatLng? _pendingPinPoint;
   List<FoodPost> _postPins = [];
+  final Set<String> _checkedShopKeys = {};
   String? _selectedLocationFilter;
   String? _selectedPriceFilter;
   String? _selectedCategoryFilter;
@@ -205,6 +207,14 @@ class _OSMMapPageState extends State<OSMMapPage> {
       });
 
     return entries.first.key;
+  }
+
+  String _shopKey(String shopName, LatLng point) {
+    return [
+      shopName.trim().toLowerCase(),
+      point.latitude.toStringAsFixed(5),
+      point.longitude.toStringAsFixed(5),
+    ].join('|');
   }
 
   Future<void> _showCreatePinDialog(LatLng point) async {
@@ -436,133 +446,192 @@ class _OSMMapPageState extends State<OSMMapPage> {
     final firstPost = posts.first;
     final shopName = _majorityShopName(posts);
     final point = LatLng(firstPost.latitude!, firstPost.longitude!);
+    final shopKey = _shopKey(shopName, point);
 
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) {
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height * 0.72,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final isChecked = _checkedShopKeys.contains(shopKey);
+            final isPollSelected = MapSelectionStore.containsPollSelection(
+              shopKey,
+            );
+
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.72,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
-                            Icons.restaurant,
-                            color: Colors.deepOrange,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              shopName,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.restaurant,
+                                color: isChecked
+                                    ? Colors.blue
+                                    : Colors.deepOrange,
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  shopName,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              IconButton.filledTonal(
+                                tooltip: isChecked ? 'チェック解除' : 'チェック',
+                                onPressed: () {
+                                  setState(() {
+                                    if (isChecked) {
+                                      _checkedShopKeys.remove(shopKey);
+                                    } else {
+                                      _checkedShopKeys.add(shopKey);
+                                    }
+                                  });
+                                  setSheetState(() {});
+                                },
+                                icon: Icon(
+                                  isChecked
+                                      ? Icons.check_circle
+                                      : Icons.check_circle_outline,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton.filledTonal(
+                                tooltip: isPollSelected
+                                    ? 'アンケート候補から外す'
+                                    : 'アンケート候補に追加',
+                                onPressed: () {
+                                  MapSelectionStore.togglePollSelection(
+                                    MapShopSelection(
+                                      key: shopKey,
+                                      shopName: shopName,
+                                      location: firstPost.location,
+                                      point: point,
+                                    ),
+                                  );
+                                  setSheetState(() {});
+                                },
+                                icon: Icon(
+                                  isPollSelected
+                                      ? Icons.how_to_vote
+                                      : Icons.how_to_vote_outlined,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton.filledTonal(
+                                tooltip: 'この店舗に投稿',
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _openPostPage(
+                                    point,
+                                    initialShopName: shopName,
+                                  );
+                                },
+                                icon: const Icon(Icons.add_a_photo_outlined),
+                              ),
+                            ],
                           ),
-                          IconButton.filledTonal(
-                            tooltip: 'この店舗に投稿',
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _openPostPage(point, initialShopName: shopName);
-                            },
-                            icon: const Icon(Icons.add_a_photo_outlined),
+                          const SizedBox(height: 6),
+                          Text(
+                            firstPost.location,
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${posts.length}件の投稿',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        firstPost.location,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${posts.length}件の投稿',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                    itemCount: posts.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      final post = posts[index];
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+                        itemCount: posts.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 16),
+                        itemBuilder: (context, index) {
+                          final post = posts[index];
 
-                      return FoodCard(
-                        padding: EdgeInsets.zero,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: Color(0xFFFFEFE3),
-                                child: Icon(
-                                  Icons.person,
-                                  color: Colors.deepOrange,
+                          return FoodCard(
+                            padding: EdgeInsets.zero,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ListTile(
+                                  leading: const CircleAvatar(
+                                    backgroundColor: Color(0xFFFFEFE3),
+                                    child: Icon(
+                                      Icons.person,
+                                      color: Colors.deepOrange,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    post.username,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  subtitle: Text(post.createdAt),
                                 ),
-                              ),
-                              title: Text(
-                                post.username,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
+                                AspectRatio(
+                                  aspectRatio: 1.05,
+                                  child: Image.network(
+                                    post.imageUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) {
+                                      return const Center(
+                                        child: Icon(
+                                          Icons.broken_image_outlined,
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
-                              subtitle: Text(post.createdAt),
-                            ),
-                            AspectRatio(
-                              aspectRatio: 1.05,
-                              child: Image.network(
-                                post.imageUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) {
-                                  return const Center(
-                                    child: Icon(Icons.broken_image_outlined),
-                                  );
-                                },
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
+                                Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Chip(label: Text(post.category)),
-                                      Chip(label: Text(post.priceRange)),
-                                      if (post.tags.isNotEmpty)
-                                        Chip(label: Text(post.tags)),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          Chip(label: Text(post.category)),
+                                          Chip(label: Text(post.priceRange)),
+                                          if (post.tags.isNotEmpty)
+                                            Chip(label: Text(post.tags)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(post.comment),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(post.comment),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -773,12 +842,18 @@ class _OSMMapPageState extends State<OSMMapPage> {
                     ),
                   ),
                 ),
-                ..._postGroups.map(
-                  (posts) => Marker(
-                    point: LatLng(
-                      posts.first.latitude!,
-                      posts.first.longitude!,
-                    ),
+                ..._postGroups.map((posts) {
+                  final point = LatLng(
+                    posts.first.latitude!,
+                    posts.first.longitude!,
+                  );
+                  final shopName = _majorityShopName(posts);
+                  final isChecked = _checkedShopKeys.contains(
+                    _shopKey(shopName, point),
+                  );
+
+                  return Marker(
+                    point: point,
                     width: 48,
                     height: 48,
                     child: GestureDetector(
@@ -786,9 +861,9 @@ class _OSMMapPageState extends State<OSMMapPage> {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.restaurant,
-                            color: Colors.deepOrange,
+                            color: isChecked ? Colors.blue : Colors.deepOrange,
                             size: 36,
                           ),
                           if (posts.length > 1)
@@ -804,8 +879,10 @@ class _OSMMapPageState extends State<OSMMapPage> {
                                   padding: const EdgeInsets.all(3),
                                   child: Text(
                                     '${posts.length}',
-                                    style: const TextStyle(
-                                      color: Colors.deepOrange,
+                                    style: TextStyle(
+                                      color: isChecked
+                                          ? Colors.blue
+                                          : Colors.deepOrange,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w900,
                                     ),
@@ -816,8 +893,8 @@ class _OSMMapPageState extends State<OSMMapPage> {
                         ],
                       ),
                     ),
-                  ),
-                ),
+                  );
+                }),
                 if (_pendingPinPoint != null)
                   Marker(
                     point: _pendingPinPoint!,

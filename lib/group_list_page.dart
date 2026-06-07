@@ -64,6 +64,28 @@ class _GroupListPageState extends State<GroupListPage>
   }
 
   Future<bool> _deleteGroup(FoodGroup group) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('グループを削除しますか？'),
+        content: Text('${group.name}を削除します。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) {
+      return false;
+    }
+
     final uri = Uri.parse(
       'http://10.0.2.2:8000/groups/${group.id}'
       '?email=${Uri.encodeComponent(widget.email)}',

@@ -404,7 +404,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(elevation: 0, title: Text(widget.email)),
+      appBar: AppBar(elevation: 0, toolbarHeight: 0),
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
         child: NotificationListener<OverscrollNotification>(
@@ -425,54 +425,72 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _ProfileImage(
                             imageFile: selectedImage,
                             profileImage: widget.profileImage,
                             onTap: pickImage,
                           ),
-                          const SizedBox(width: 24),
+                          const SizedBox(width: 16),
                           Expanded(
-                            child: FutureBuilder<Map<String, int>>(
-                              future: _followStatsFuture,
-                              builder: (context, followSnapshot) {
-                                return FutureBuilder<int>(
-                                  future: _groupCountFuture,
-                                  builder: (context, groupSnapshot) {
-                                    final stats =
-                                        followSnapshot.data ??
-                                        const {
-                                          'followers_count': 0,
-                                          'following_count': 0,
-                                        };
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.email,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: foodInk,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                FutureBuilder<Map<String, int>>(
+                                  future: _followStatsFuture,
+                                  builder: (context, followSnapshot) {
+                                    return FutureBuilder<int>(
+                                      future: _groupCountFuture,
+                                      builder: (context, groupSnapshot) {
+                                        final stats =
+                                            followSnapshot.data ??
+                                            const {
+                                              'followers_count': 0,
+                                              'following_count': 0,
+                                            };
 
-                                    return Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceEvenly,
-                                      children: [
-                                        _FollowStatButton(
-                                          label: 'フォロワー',
-                                          count: stats['followers_count'] ?? 0,
-                                          onTap: () =>
-                                              _openFollowList('followers'),
-                                        ),
-                                        _FollowStatButton(
-                                          label: 'フォロー',
-                                          count: stats['following_count'] ?? 0,
-                                          onTap: () =>
-                                              _openFollowList('following'),
-                                        ),
-                                        _FollowStatButton(
-                                          label: 'グループ',
-                                          count: groupSnapshot.data ?? 0,
-                                          onTap: _openGroupList,
-                                        ),
-                                      ],
+                                        return Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _FollowStatButton(
+                                              label: 'フォロワー',
+                                              count:
+                                                  stats['followers_count'] ?? 0,
+                                              onTap: () =>
+                                                  _openFollowList('followers'),
+                                            ),
+                                            _FollowStatButton(
+                                              label: 'フォロー',
+                                              count:
+                                                  stats['following_count'] ?? 0,
+                                              onTap: () =>
+                                                  _openFollowList('following'),
+                                            ),
+                                            _FollowStatButton(
+                                              label: 'グループ',
+                                              count: groupSnapshot.data ?? 0,
+                                              onTap: _openGroupList,
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     );
                                   },
-                                );
-                              },
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -541,17 +559,17 @@ class _ProfileImage extends StatelessWidget {
     return Stack(
       children: [
         Container(
-          width: 112,
-          height: 112,
+          width: 108,
+          height: 108,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [foodPrimary, const Color(0xFFFFC285)],
-            ),
+            color: const Color(0xFFFFEFE3),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: foodLine),
           ),
           child: Padding(
             padding: const EdgeInsets.all(5),
-            child: ClipOval(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(19),
               child: imageFile != null
                   ? Image.file(imageFile!, fit: BoxFit.cover)
                   : Image.network(
@@ -578,7 +596,7 @@ class _ProfileImage extends StatelessWidget {
               height: 34,
               decoration: BoxDecoration(
                 color: foodPrimary,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white, width: 3),
               ),
               child: const Icon(Icons.add, color: Colors.white, size: 20),

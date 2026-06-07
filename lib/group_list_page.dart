@@ -15,13 +15,28 @@ class GroupListPage extends StatefulWidget {
   State<GroupListPage> createState() => _GroupListPageState();
 }
 
-class _GroupListPageState extends State<GroupListPage> {
+class _GroupListPageState extends State<GroupListPage>
+    with WidgetsBindingObserver {
   late Future<List<FoodGroup>> _groupsFuture;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _groupsFuture = _fetchGroups();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reloadGroups();
+    }
   }
 
   Future<List<FoodGroup>> _fetchGroups() async {

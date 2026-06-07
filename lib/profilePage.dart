@@ -25,7 +25,7 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   File? selectedImage;
   late Future<List<FoodPost>> _myPostsFuture;
   late Future<Map<String, int>> _followStatsFuture;
@@ -83,9 +83,23 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _myPostsFuture = _fetchMyPosts();
     _followStatsFuture = _fetchFollowStats();
     _groupCountFuture = _fetchGroupCount();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reloadProfileCounts();
+    }
   }
 
   Future<void> uploadImage(File imageFile) async {
@@ -188,6 +202,17 @@ class _ProfilePageState extends State<ProfilePage> {
       _groupCountFuture = _fetchGroupCount();
     });
     await Future.wait([_myPostsFuture, _followStatsFuture, _groupCountFuture]);
+  }
+
+  void _reloadProfileCounts() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _followStatsFuture = _fetchFollowStats();
+      _groupCountFuture = _fetchGroupCount();
+    });
   }
 
   void _openFollowList(String listType) {

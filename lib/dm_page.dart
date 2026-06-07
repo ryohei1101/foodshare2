@@ -946,27 +946,104 @@ class _PollMessageCardState extends State<_PollMessageCard> {
               ],
             ),
             const SizedBox(height: 10),
+            Text(
+              '合計 ${widget.poll.totalVotes}票',
+              style: const TextStyle(color: foodMuted, fontSize: 12),
+            ),
+            const SizedBox(height: 4),
             ...widget.poll.options.map((option) {
               final selected = _selectedOptionIds.contains(option.id);
-              return CheckboxListTile(
-                value: selected,
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                onChanged: (value) {
-                  setState(() {
-                    if (value == true) {
-                      _selectedOptionIds.add(option.id);
-                    } else {
-                      _selectedOptionIds.remove(option.id);
-                    }
-                  });
-                },
-                title: Text(
-                  option.shopName,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+              final ratio = widget.poll.totalVotes == 0
+                  ? 0.0
+                  : option.voteCount / widget.poll.totalVotes;
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    setState(() {
+                      if (selected) {
+                        _selectedOptionIds.remove(option.id);
+                      } else {
+                        _selectedOptionIds.add(option.id);
+                      }
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Checkbox(
+                          value: selected,
+                          onChanged: (value) {
+                            setState(() {
+                              if (value == true) {
+                                _selectedOptionIds.add(option.id);
+                              } else {
+                                _selectedOptionIds.remove(option.id);
+                              }
+                            });
+                          },
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      option.shopName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${option.percent(widget.poll.totalVotes)}% ・ ${option.voteCount}票',
+                                    style: const TextStyle(
+                                      color: foodMuted,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                option.location,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: foodMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(999),
+                                child: LinearProgressIndicator(
+                                  value: ratio,
+                                  minHeight: 8,
+                                  backgroundColor: foodLine,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                        foodPrimary,
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                subtitle: Text('${option.location} ・ ${option.voteCount}票'),
               );
             }),
             const SizedBox(height: 8),
@@ -1123,6 +1200,10 @@ class DmPoll {
   final String createdBy;
   final List<DmPollOption> options;
 
+  int get totalVotes {
+    return options.fold(0, (total, option) => total + option.voteCount);
+  }
+
   List<int> get votedOptionIds => options
       .where((option) => option.votedByMe)
       .map((option) => option.id)
@@ -1158,6 +1239,11 @@ class DmPollOption {
   final String location;
   final int voteCount;
   final bool votedByMe;
+
+  int percent(int totalVotes) {
+    if (totalVotes == 0) return 0;
+    return ((voteCount / totalVotes) * 100).round();
+  }
 
   factory DmPollOption.fromJson(Map<String, dynamic> json) {
     return DmPollOption(

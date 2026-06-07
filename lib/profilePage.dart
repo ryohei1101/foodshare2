@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:foodshare/Timeline.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/follow_list_page.dart';
 import 'package:foodshare/group_list_page.dart';
@@ -681,20 +682,86 @@ class _MyPostsGrid extends StatelessWidget {
               mainAxisSpacing: 4,
             ),
             delegate: SliverChildBuilderDelegate((context, index) {
-              return Image.network(
-                posts[index].imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) {
-                  return const ColoredBox(
-                    color: Color(0xFFFFEFE3),
-                    child: Icon(Icons.broken_image_outlined, color: foodMuted),
+              final post = posts[index];
+
+              return InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ProfilePostDetailPage(
+                        posts: posts,
+                        initialIndex: index,
+                      ),
+                    ),
                   );
                 },
+                child: Image.network(
+                  post.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) {
+                    return const ColoredBox(
+                      color: Color(0xFFFFEFE3),
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: foodMuted,
+                      ),
+                    );
+                  },
+                ),
               );
             }, childCount: posts.length),
           ),
         );
       },
+    );
+  }
+}
+
+class ProfilePostDetailPage extends StatefulWidget {
+  const ProfilePostDetailPage({
+    super.key,
+    required this.posts,
+    required this.initialIndex,
+  });
+
+  final List<FoodPost> posts;
+  final int initialIndex;
+
+  @override
+  State<ProfilePostDetailPage> createState() => _ProfilePostDetailPageState();
+}
+
+class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('投稿')),
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        itemCount: widget.posts.length,
+        itemBuilder: (context, index) {
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+            children: [InstaPostCard(post: widget.posts[index])],
+          );
+        },
+      ),
     );
   }
 }

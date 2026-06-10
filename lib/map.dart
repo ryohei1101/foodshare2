@@ -1227,37 +1227,6 @@ class _OSMMapPageState extends State<OSMMapPage> {
               ),
             ),
           ),
-        Positioned(
-          top: 16,
-          right: 16,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '地図をタップして候補位置を選択',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 4),
-                  Text('青: 自分  赤: 他の人', style: TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-          ),
-        ),
         if (_pendingPinPoint != null)
           Positioned(
             left: 16,

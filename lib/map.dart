@@ -707,8 +707,6 @@ class _OSMMapPageState extends State<OSMMapPage> {
                                         children: [
                                           Chip(label: Text(post.category)),
                                           Chip(label: Text(post.priceRange)),
-                                          if (post.tags.isNotEmpty)
-                                            Chip(label: Text(post.tags)),
                                         ],
                                       ),
                                       const SizedBox(height: 8),

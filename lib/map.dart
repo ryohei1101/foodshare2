@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:foodshare/PostPage.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/map_focus_store.dart';
 import 'package:foodshare/map_selection_store.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
@@ -76,12 +79,17 @@ class _OSMMapPageState extends State<OSMMapPage> {
     ),
   ];
   LatLng? _pendingPinPoint;
+  LatLng? _focusedPoint;
+  String _focusedLabel = '';
+  LatLng? _searchCenter;
   List<FoodPost> _postPins = [];
   final Set<String> _checkedShopKeys = {};
-  String? _selectedLocationFilter;
   String? _selectedPriceFilter;
   String? _selectedCategoryFilter;
   String? _selectedTagFilter;
+  final List<Offset> _circleGesturePoints = [];
+  bool _isFilterSheetOpen = false;
+  static const double _searchRadiusKm = 1.0;
 
   final List<String> _priceFilters = const [
     "~2000円",
@@ -125,8 +133,59 @@ class _OSMMapPageState extends State<OSMMapPage> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration.zero, () {
-      _mapController.move(fakeCurrentPos, 17);
+    MapFocusStore.request.addListener(_handleMapFocusRequest);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final request = MapFocusStore.request.value;
+      if (request == null) {
+        _mapController.move(fakeCurrentPos, 17);
+        return;
+      }
+
+      _focusOnPoint(request.point, label: request.label);
+    });
+    _fetchPostPins();
+  }
+
+  @override
+  void dispose() {
+    MapFocusStore.request.removeListener(_handleMapFocusRequest);
+    super.dispose();
+  }
+
+  bool get _hasActiveFilters =>
+      _searchCenter != null ||
+      _selectedPriceFilter != null ||
+      _selectedCategoryFilter != null ||
+      _selectedTagFilter != null;
+
+  void _handleMapFocusRequest() {
+    final request = MapFocusStore.request.value;
+    if (!mounted || request == null) {
+      return;
+    }
+
+    _focusOnPoint(request.point, label: request.label);
+  }
+
+  void _focusOnPoint(LatLng point, {String label = ''}) {
+    setState(() {
+      _focusedPoint = point;
+      _focusedLabel = label;
+      _pendingPinPoint = null;
+    });
+    _mapController.move(point, 18);
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchCenter = null;
+      _selectedPriceFilter = null;
+      _selectedCategoryFilter = null;
+      _selectedTagFilter = null;
     });
     _fetchPostPins();
   }
@@ -135,9 +194,6 @@ class _OSMMapPageState extends State<OSMMapPage> {
     try {
       final query = <String, String>{
         'limit': '200',
-        if (_selectedLocationFilter != null &&
-            _selectedLocationFilter!.trim().isNotEmpty)
-          'location': _selectedLocationFilter!.trim(),
         if (_selectedPriceFilter != null) 'price_range': _selectedPriceFilter!,
         if (_selectedCategoryFilter != null)
           'category': _selectedCategoryFilter!,
@@ -158,6 +214,17 @@ class _OSMMapPageState extends State<OSMMapPage> {
         _postPins = posts
             .map((post) => FoodPost.fromJson(post as Map<String, dynamic>))
             .where((post) => post.latitude != null && post.longitude != null)
+            .where((post) {
+              if (_searchCenter == null) {
+                return true;
+              }
+              final distanceKm = const Distance().as(
+                LengthUnit.Kilometer,
+                _searchCenter!,
+                LatLng(post.latitude!, post.longitude!),
+              );
+              return distanceKm <= _searchRadiusKm;
+            })
             .toList();
       });
     } catch (e) {
@@ -654,15 +721,24 @@ class _OSMMapPageState extends State<OSMMapPage> {
     );
   }
 
-  void _showFilterSheet() {
-    final locationController = TextEditingController(
-      text: _selectedLocationFilter ?? '',
-    );
+  Future<void> _showFilterSheet({LatLng? searchCenter}) async {
+    if (_isFilterSheetOpen) {
+      return;
+    }
+
+    _isFilterSheetOpen = true;
+    if (searchCenter != null) {
+      setState(() {
+        _searchCenter = searchCenter;
+      });
+      _mapController.move(searchCenter, 16);
+    }
+
     String? price = _selectedPriceFilter;
     String? category = _selectedCategoryFilter;
     String? tag = _selectedTagFilter;
 
-    showModalBottomSheet<void>(
+    await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -683,22 +759,23 @@ class _OSMMapPageState extends State<OSMMapPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text(
-                        '条件で探す',
+                        '周辺の条件で探す',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      TextField(
-                        controller: locationController,
-                        decoration: const InputDecoration(
-                          labelText: '場所',
-                          hintText: '例: 港区、渋谷区',
-                          prefixIcon: Icon(Icons.place_outlined),
+                      const SizedBox(height: 8),
+                      Text(
+                        _searchCenter == null
+                            ? '現在表示している地図周辺から探します。'
+                            : '囲った中心から1km周辺を探します。',
+                        style: const TextStyle(
+                          color: foodMuted,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 18),
                       DropdownButtonFormField<String>(
                         initialValue: price,
                         hint: const Text('価格帯'),
@@ -756,10 +833,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
                       ElevatedButton.icon(
                         onPressed: () {
                           setState(() {
-                            _selectedLocationFilter =
-                                locationController.text.trim().isEmpty
-                                ? null
-                                : locationController.text.trim();
+                            _searchCenter ??= _mapController.camera.center;
                             _selectedPriceFilter = price;
                             _selectedCategoryFilter = category;
                             _selectedTagFilter = tag;
@@ -774,7 +848,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
                       OutlinedButton(
                         onPressed: () {
                           setState(() {
-                            _selectedLocationFilter = null;
+                            _searchCenter = null;
                             _selectedPriceFilter = null;
                             _selectedCategoryFilter = null;
                             _selectedTagFilter = null;
@@ -793,151 +867,290 @@ class _OSMMapPageState extends State<OSMMapPage> {
         );
       },
     );
+
+    _isFilterSheetOpen = false;
+  }
+
+  void _startCircleGesture(Offset point) {
+    _circleGesturePoints
+      ..clear()
+      ..add(point);
+  }
+
+  void _updateCircleGesture(Offset point) {
+    if (_isFilterSheetOpen) {
+      return;
+    }
+
+    _circleGesturePoints.add(point);
+  }
+
+  void _finishCircleGesture() {
+    if (_isFilterSheetOpen || _circleGesturePoints.length < 18) {
+      _circleGesturePoints.clear();
+      return;
+    }
+
+    final first = _circleGesturePoints.first;
+    final last = _circleGesturePoints.last;
+    final closeDistance = (last - first).distance;
+    final xs = _circleGesturePoints.map((point) => point.dx);
+    final ys = _circleGesturePoints.map((point) => point.dy);
+    final minX = xs.reduce(math.min);
+    final maxX = xs.reduce(math.max);
+    final minY = ys.reduce(math.min);
+    final maxY = ys.reduce(math.max);
+    final width = maxX - minX;
+    final height = maxY - minY;
+    final ratio = height == 0 ? 0.0 : width / height;
+
+    _circleGesturePoints.clear();
+
+    if (closeDistance > 80 ||
+        width < 90 ||
+        height < 90 ||
+        ratio < 0.55 ||
+        ratio > 1.8) {
+      return;
+    }
+
+    final center = Offset((minX + maxX) / 2, (minY + maxY) / 2);
+    final centerPoint = _mapController.camera.pointToLatLng(
+      math.Point(center.dx, center.dy),
+    );
+
+    _showFilterSheet(searchCenter: centerPoint);
   }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: fakeCurrentPos,
-            initialZoom: 17,
-            onTap: (_, point) {
-              setState(() {
-                _pendingPinPoint = point;
-              });
-            },
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.07ryohe1101.foooood',
+        Listener(
+          onPointerDown: (event) => _startCircleGesture(event.localPosition),
+          onPointerMove: (event) => _updateCircleGesture(event.localPosition),
+          onPointerUp: (_) => _finishCircleGesture(),
+          onPointerCancel: (_) => _circleGesturePoints.clear(),
+          child: FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: fakeCurrentPos,
+              initialZoom: 17,
+              onTap: (_, point) {
+                setState(() {
+                  _pendingPinPoint = point;
+                  _focusedPoint = null;
+                  _focusedLabel = '';
+                });
+              },
             ),
-            RichAttributionWidget(
-              attributions: [
-                TextSourceAttribution('OpenStreetMap contributors'),
-              ],
-            ),
-            CircleLayer(
-              circles: [
-                CircleMarker(
-                  point: fakeCurrentPos,
-                  color: Colors.blue.withValues(alpha: 0.2),
-                  borderStrokeWidth: 1,
-                  borderColor: Colors.blue.withValues(alpha: 0.5),
-                  useRadiusInMeter: true,
-                  radius: fakeAccuracy,
-                ),
-              ],
-            ),
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: fakeCurrentPos,
-                  width: 40,
-                  height: 40,
-                  child: const Icon(
-                    Icons.my_location,
-                    color: Colors.blue,
-                    size: 32,
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.07ryohe1101.foooood',
+              ),
+              RichAttributionWidget(
+                attributions: [
+                  TextSourceAttribution('OpenStreetMap contributors'),
+                ],
+              ),
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: fakeCurrentPos,
+                    color: Colors.blue.withValues(alpha: 0.2),
+                    borderStrokeWidth: 1,
+                    borderColor: Colors.blue.withValues(alpha: 0.5),
+                    useRadiusInMeter: true,
+                    radius: fakeAccuracy,
                   ),
+                ],
+              ),
+              if (_searchCenter != null)
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: _searchCenter!,
+                      radius: _searchRadiusKm * 1000,
+                      useRadiusInMeter: true,
+                      color: foodPrimary.withValues(alpha: 0.10),
+                      borderColor: foodPrimary,
+                      borderStrokeWidth: 2,
+                    ),
+                  ],
                 ),
-                ..._pins.map(
-                  (pin) => Marker(
-                    point: pin.point,
-                    width: 48,
-                    height: 48,
-                    child: GestureDetector(
-                      onTap: () => _showPinDetail(pin),
-                      child: Icon(
-                        pin.isMine ? Icons.bookmark : Icons.location_on,
-                        color: pin.isMine ? Colors.blue : Colors.redAccent,
-                        size: pin.isMine ? 34 : 38,
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: fakeCurrentPos,
+                    width: 40,
+                    height: 40,
+                    child: const Icon(
+                      Icons.my_location,
+                      color: Colors.blue,
+                      size: 32,
+                    ),
+                  ),
+                  ..._pins.map(
+                    (pin) => Marker(
+                      point: pin.point,
+                      width: 48,
+                      height: 48,
+                      child: GestureDetector(
+                        onTap: () => _showPinDetail(pin),
+                        child: Icon(
+                          pin.isMine ? Icons.bookmark : Icons.location_on,
+                          color: pin.isMine ? Colors.blue : Colors.redAccent,
+                          size: pin.isMine ? 34 : 38,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                ..._postGroups.map((posts) {
-                  final point = LatLng(
-                    posts.first.latitude!,
-                    posts.first.longitude!,
-                  );
-                  final shopName = _majorityShopName(posts);
-                  final isChecked = _checkedShopKeys.contains(
-                    _shopKey(shopName, point),
-                  );
+                  ..._postGroups.map((posts) {
+                    final point = LatLng(
+                      posts.first.latitude!,
+                      posts.first.longitude!,
+                    );
+                    final shopName = _majorityShopName(posts);
+                    final isChecked = _checkedShopKeys.contains(
+                      _shopKey(shopName, point),
+                    );
 
-                  return Marker(
-                    point: point,
-                    width: 48,
-                    height: 48,
-                    child: GestureDetector(
-                      onTap: () => _showPostGroupDetail(posts),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Icon(
-                            Icons.restaurant,
-                            color: isChecked ? Colors.blue : Colors.deepOrange,
-                            size: 36,
-                          ),
-                          if (posts.length > 1)
-                            Positioned(
-                              top: 0,
-                              right: 2,
-                              child: DecoratedBox(
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(3),
-                                  child: Text(
-                                    '${posts.length}',
-                                    style: TextStyle(
-                                      color: isChecked
-                                          ? Colors.blue
-                                          : Colors.deepOrange,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w900,
+                    return Marker(
+                      point: point,
+                      width: 48,
+                      height: 48,
+                      child: GestureDetector(
+                        onTap: () => _showPostGroupDetail(posts),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(
+                              Icons.restaurant,
+                              color: isChecked
+                                  ? Colors.blue
+                                  : Colors.deepOrange,
+                              size: 36,
+                            ),
+                            if (posts.length > 1)
+                              Positioned(
+                                top: 0,
+                                right: 2,
+                                child: DecoratedBox(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(3),
+                                    child: Text(
+                                      '${posts.length}',
+                                      style: TextStyle(
+                                        color: isChecked
+                                            ? Colors.blue
+                                            : Colors.deepOrange,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w900,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  if (_pendingPinPoint != null)
+                    Marker(
+                      point: _pendingPinPoint!,
+                      width: 46,
+                      height: 46,
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Colors.orangeAccent,
+                        size: 38,
                       ),
                     ),
-                  );
-                }),
-                if (_pendingPinPoint != null)
-                  Marker(
-                    point: _pendingPinPoint!,
-                    width: 46,
-                    height: 46,
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Colors.orangeAccent,
-                      size: 38,
+                  if (_focusedPoint != null)
+                    Marker(
+                      point: _focusedPoint!,
+                      width: 58,
+                      height: 58,
+                      child: const Icon(
+                        Icons.location_pin,
+                        color: Colors.blueAccent,
+                        size: 48,
+                      ),
                     ),
-                  ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
         Positioned(
           top: 16,
           left: 16,
-          child: FloatingActionButton.small(
-            heroTag: 'map-filter',
-            backgroundColor: Colors.white,
-            foregroundColor: foodPrimary,
-            onPressed: _showFilterSheet,
-            child: const Icon(Icons.search),
+          child: Row(
+            children: [
+              FloatingActionButton.small(
+                heroTag: 'map-filter',
+                backgroundColor: Colors.white,
+                foregroundColor: foodPrimary,
+                onPressed: () => _showFilterSheet(),
+                child: const Icon(Icons.search),
+              ),
+              const SizedBox(width: 10),
+              if (_hasActiveFilters)
+                FloatingActionButton.small(
+                  heroTag: 'map-filter-reset',
+                  backgroundColor: Colors.white,
+                  foregroundColor: foodMuted,
+                  onPressed: _clearFilters,
+                  child: const Icon(Icons.close),
+                ),
+            ],
           ),
         ),
+        if (_focusedPoint != null && _focusedLabel.isNotEmpty)
+          Positioned(
+            left: 16,
+            right: 16,
+            top: 74,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.94),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.map_outlined, color: foodPrimary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _focusedLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         Positioned(
           top: 16,
           right: 16,

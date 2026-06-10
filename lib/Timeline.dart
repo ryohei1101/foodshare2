@@ -2,8 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/map_focus_store.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
 
 class TimeLinePage extends StatefulWidget {
   const TimeLinePage({super.key, required this.email});
@@ -494,6 +496,19 @@ class InstaPostCard extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             subtitle: Text(post.location),
+            trailing: post.latitude == null || post.longitude == null
+                ? null
+                : IconButton.filledTonal(
+                    tooltip: '地図で見る',
+                    icon: const Icon(Icons.map_outlined),
+                    onPressed: () {
+                      MapFocusStore.focus(
+                        LatLng(post.latitude!, post.longitude!),
+                        label: post.shopName,
+                      );
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+                  ),
           ),
           AspectRatio(
             aspectRatio: 1.05,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import "package:foodshare/account_search_page.dart";
 import "package:foodshare/dm_page.dart";
 import "package:foodshare/map.dart";
+import "package:foodshare/map_focus_store.dart";
 import "package:foodshare/profilePage.dart";
 import "package:foodshare/Timeline.dart";
 import 'package:http/http.dart' as http;
@@ -49,6 +50,7 @@ class _InstaHomeState extends State<InstaHome> {
   @override
   void initState() {
     super.initState();
+    MapFocusStore.request.addListener(_handleMapFocusRequest);
     _fetchUnreadDmCount();
     _unreadTimer = Timer.periodic(
       const Duration(seconds: 20),
@@ -58,8 +60,19 @@ class _InstaHomeState extends State<InstaHome> {
 
   @override
   void dispose() {
+    MapFocusStore.request.removeListener(_handleMapFocusRequest);
     _unreadTimer?.cancel();
     super.dispose();
+  }
+
+  void _handleMapFocusRequest() {
+    if (!mounted || MapFocusStore.request.value == null) {
+      return;
+    }
+
+    setState(() {
+      _currentIndex = 0;
+    });
   }
 
   Future<void> _fetchUnreadDmCount() async {

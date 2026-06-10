@@ -89,8 +89,9 @@ class _OSMMapPageState extends State<OSMMapPage> {
   String? _selectedCategoryFilter;
   String? _selectedTagFilter;
   final List<Offset> _circleGesturePoints = [];
+  final ValueNotifier<List<Offset>> _circleGestureTrace =
+      ValueNotifier<List<Offset>>(const []);
   bool _isFilterSheetOpen = false;
-  bool _isDrawingCircleSearch = false;
   static const double _searchRadiusKm = 1.0;
 
   final List<String> _priceFilters = const [
@@ -155,6 +156,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
   @override
   void dispose() {
     MapFocusStore.request.removeListener(_handleMapFocusRequest);
+    _circleGestureTrace.dispose();
     super.dispose();
   }
 
@@ -886,12 +888,10 @@ class _OSMMapPageState extends State<OSMMapPage> {
       return;
     }
 
-    setState(() {
-      _isDrawingCircleSearch = false;
-      _circleGesturePoints
-        ..clear()
-        ..add(point);
-    });
+    _circleGestureTrace.value = const [];
+    _circleGesturePoints
+      ..clear()
+      ..add(point);
   }
 
   void _updateCircleGesture(Offset point) {
@@ -903,18 +903,23 @@ class _OSMMapPageState extends State<OSMMapPage> {
         _circleGesturePoints.isNotEmpty &&
         (point - _circleGesturePoints.first).distance > 14;
 
-    setState(() {
-      _isDrawingCircleSearch = _isDrawingCircleSearch || shouldShowTrace;
-      _circleGesturePoints.add(point);
-    });
+    _circleGesturePoints.add(point);
+
+    if (shouldShowTrace) {
+      _circleGestureTrace.value = List<Offset>.unmodifiable(
+        _circleGesturePoints,
+      );
+    }
+  }
+
+  void _clearCircleGestureTrace() {
+    _circleGesturePoints.clear();
+    _circleGestureTrace.value = const [];
   }
 
   void _finishCircleGesture() {
     if (_isFilterSheetOpen || _circleGesturePoints.length < 10) {
-      setState(() {
-        _isDrawingCircleSearch = false;
-        _circleGesturePoints.clear();
-      });
+      _clearCircleGestureTrace();
       return;
     }
 
@@ -954,10 +959,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
       previousAngle = nextAngle;
     }
 
-    setState(() {
-      _isDrawingCircleSearch = false;
-      _circleGesturePoints.clear();
-    });
+    _clearCircleGestureTrace();
 
     final maxSide = math.max(width, height);
     final isCircleLike =
@@ -988,10 +990,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
           onPointerMove: (event) => _updateCircleGesture(event.localPosition),
           onPointerUp: (_) => _finishCircleGesture(),
           onPointerCancel: (_) {
-            setState(() {
-              _isDrawingCircleSearch = false;
-              _circleGesturePoints.clear();
-            });
+            _clearCircleGestureTrace();
           },
           child: FlutterMap(
             mapController: _mapController,
@@ -1150,14 +1149,22 @@ class _OSMMapPageState extends State<OSMMapPage> {
             ],
           ),
         ),
-        if (_isDrawingCircleSearch && _circleGesturePoints.length > 1)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(
-                painter: _CircleSearchPainter(points: _circleGesturePoints),
-              ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ValueListenableBuilder<List<Offset>>(
+              valueListenable: _circleGestureTrace,
+              builder: (context, points, _) {
+                if (points.length < 2) {
+                  return const SizedBox.shrink();
+                }
+
+                return CustomPaint(
+                  painter: _CircleSearchPainter(points: points),
+                );
+              },
             ),
           ),
+        ),
         Positioned(
           top: 16,
           left: 16,

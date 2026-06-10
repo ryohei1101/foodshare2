@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:foodshare/PostPage.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/genre_options.dart';
 import 'package:foodshare/map_focus_store.dart';
 import 'package:foodshare/map_selection_store.dart';
 import 'package:foodshare/post_model.dart';
@@ -108,15 +109,6 @@ class _OSMMapPageState extends State<OSMMapPage> {
     "15000~20000円",
     "20000~30000円",
     "30000円以上",
-  ];
-
-  final List<String> _categoryFilters = const [
-    '和食',
-    '洋食',
-    '中華',
-    'スイーツ',
-    'ドリンク',
-    'その他',
   ];
 
   final List<String> _tagFilters = const [
@@ -804,17 +796,10 @@ class _OSMMapPageState extends State<OSMMapPage> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          initialValue: category,
-                          hint: const Text('カテゴリ'),
-                          items: _categoryFilters
-                              .map(
-                                (value) => DropdownMenuItem(
-                                  value: value,
-                                  child: Text(value),
-                                ),
-                              )
-                              .toList(),
+                        FoodGenreSelector(
+                          value: category,
+                          parentHint: 'ジャンル',
+                          childHint: '細分類',
                           onChanged: (value) {
                             setSheetState(() {
                               category = value;

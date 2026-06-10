@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/genre_options.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -37,15 +38,6 @@ class _PostPageState extends State<PostPage> {
   bool _isDetailStep = false;
   bool _isSubmitting = false;
   bool _isResolvingAddress = false;
-
-  final List<String> _categories = const [
-    '和食',
-    '洋食',
-    '中華',
-    'スイーツ',
-    'ドリンク',
-    'その他',
-  ];
 
   final List<String> _priceTags = const [
     "~2000円",
@@ -353,17 +345,10 @@ class _PostPageState extends State<PostPage> {
             const SizedBox(height: 24),
             const FoodSectionTitle('カテゴリ'),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCategory,
-              hint: const Text('カテゴリを選択してください'),
-              items: _categories
-                  .map(
-                    (category) => DropdownMenuItem(
-                      value: category,
-                      child: Text(category),
-                    ),
-                  )
-                  .toList(),
+            FoodGenreSelector(
+              value: _selectedCategory,
+              parentHint: 'ジャンルを選択してください',
+              childHint: '細分類を選択してください',
               onChanged: (value) {
                 setState(() {
                   _selectedCategory = value;

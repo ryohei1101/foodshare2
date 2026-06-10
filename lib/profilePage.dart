@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:foodshare/Timeline.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/follow_list_page.dart';
+import 'package:foodshare/genre_options.dart';
 import 'package:foodshare/group_list_page.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
@@ -50,15 +51,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     "15000~20000円",
     "20000~30000円",
     "30000円以上",
-  ];
-
-  final List<String> _categoryFilters = const [
-    '和食',
-    '洋食',
-    '中華',
-    'スイーツ',
-    'ドリンク',
-    'その他',
   ];
 
   final List<String> _tagFilters = const [
@@ -329,17 +321,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                         },
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: category,
-                        hint: const Text('カテゴリ'),
-                        items: _categoryFilters
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
-                              ),
-                            )
-                            .toList(),
+                      FoodGenreSelector(
+                        value: category,
+                        parentHint: 'ジャンル',
+                        childHint: '細分類',
                         onChanged: (value) {
                           setSheetState(() {
                             category = value;

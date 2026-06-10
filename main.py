@@ -992,9 +992,26 @@ def get_posts(
 
     if category:
 
-        conditions.append("p.category = %s")
+        if " / " in category:
 
-        params.append(category)
+            legacy_child_category = category.split(" / ")[-1]
+
+            conditions.append("(p.category = %s OR p.category = %s)")
+
+            params.extend([category, legacy_child_category])
+
+        else:
+
+            legacy_categories = {
+                "カフェ・スイーツ": ["スイーツ"],
+                "バー・ダイニングバー": ["ドリンク"],
+            }.get(category, [])
+
+            legacy_placeholders = "".join(" OR p.category = %s" for _ in legacy_categories)
+
+            conditions.append(f"(p.category = %s OR p.category LIKE %s{legacy_placeholders})")
+
+            params.extend([category, f"{category} / %", *legacy_categories])
 
     if tag:
 

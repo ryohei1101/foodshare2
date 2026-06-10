@@ -347,8 +347,6 @@ class _PostPageState extends State<PostPage> {
             const SizedBox(height: 8),
             FoodGenreSelector(
               value: _selectedCategory,
-              parentHint: 'ジャンルを選択してください',
-              childHint: '細分類を選択してください',
               onChanged: (value) {
                 setState(() {
                   _selectedCategory = value;

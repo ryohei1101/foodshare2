@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:foodshare/app_ui.dart';
 
 class FoodGenre {
   const FoodGenre({required this.name, required this.children});
@@ -83,60 +84,106 @@ class FoodGenreSelector extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
-    this.parentHint = 'ジャンル',
-    this.childHint = '細分類',
   });
 
   final String? value;
   final ValueChanged<String?> onChanged;
-  final String parentHint;
-  final String childHint;
 
   @override
   Widget build(BuildContext context) {
     final selectedGenre = genreForValue(value);
     final selectedChild = genreChildForValue(value);
+    final isChildView = selectedGenre != null;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        DropdownButtonFormField<String>(
-          initialValue: selectedGenre?.name,
-          hint: Text(parentHint),
-          items: foodGenres
-              .map(
-                (genre) => DropdownMenuItem(
-                  value: genre.name,
-                  child: Text(genre.name),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      child: isChildView
+          ? _GenreChipGroup(
+              key: ValueKey(selectedGenre.name),
+              children: [
+                _GenreChipData(
+                  label: '大分類へ戻る',
+                  icon: Icons.arrow_back,
+                  onTap: () => onChanged(null),
                 ),
-              )
-              .toList(),
-          onChanged: onChanged,
-        ),
-        if (selectedGenre != null && selectedGenre.children.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: selectedChild,
-            hint: Text(childHint),
-            items: [
-              DropdownMenuItem(
-                value: '',
-                child: Text('${selectedGenre.name}すべて'),
-              ),
-              ...selectedGenre.children.map(
-                (child) => DropdownMenuItem(value: child, child: Text(child)),
-              ),
-            ],
-            onChanged: (child) {
-              onChanged(
-                child == null || child.isEmpty
-                    ? selectedGenre.name
-                    : genreValue(selectedGenre.name, child),
-              );
-            },
+                _GenreChipData(
+                  label: '${selectedGenre.name} 全般',
+                  selected: selectedChild == null,
+                  onTap: () => onChanged(selectedGenre.name),
+                ),
+                ...selectedGenre.children.map(
+                  (child) => _GenreChipData(
+                    label: child,
+                    selected: selectedChild == child,
+                    onTap: () =>
+                        onChanged(genreValue(selectedGenre.name, child)),
+                  ),
+                ),
+              ],
+            )
+          : _GenreChipGroup(
+              key: const ValueKey('parents'),
+              children: foodGenres
+                  .map(
+                    (genre) => _GenreChipData(
+                      label: genre.name,
+                      onTap: () => onChanged(genre.name),
+                    ),
+                  )
+                  .toList(),
+            ),
+    );
+  }
+}
+
+class _GenreChipData {
+  const _GenreChipData({
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.selected = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final IconData? icon;
+  final bool selected;
+}
+
+class _GenreChipGroup extends StatelessWidget {
+  const _GenreChipGroup({super.key, required this.children});
+
+  final List<_GenreChipData> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: children.map((item) {
+        final selected = item.selected;
+
+        return ChoiceChip(
+          avatar: item.icon == null
+              ? null
+              : Icon(
+                  item.icon,
+                  size: 18,
+                  color: selected ? Colors.white : foodPrimary,
+                ),
+          label: Text(item.label),
+          selected: selected,
+          onSelected: (_) => item.onTap(),
+          selectedColor: foodPrimary,
+          backgroundColor: const Color(0xFFFFEFE3),
+          labelStyle: TextStyle(
+            color: selected ? Colors.white : foodPrimary,
+            fontWeight: FontWeight.w800,
           ),
-        ],
-      ],
+          side: const BorderSide(color: foodPrimary),
+          visualDensity: VisualDensity.compact,
+        );
+      }).toList(),
     );
   }
 }

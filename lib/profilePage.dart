@@ -323,8 +323,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                       const SizedBox(height: 16),
                       FoodGenreSelector(
                         value: category,
-                        parentHint: 'ジャンル',
-                        childHint: '細分類',
                         onChanged: (value) {
                           setSheetState(() {
                             category = value;

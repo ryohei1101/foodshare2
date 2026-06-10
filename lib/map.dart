@@ -692,18 +692,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
-                                    children: [
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: [
-                                          Chip(label: Text(post.category)),
-                                          Chip(label: Text(post.priceRange)),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(post.comment),
-                                    ],
+                                    children: [Text(post.comment)],
                                   ),
                                 ),
                               ],
@@ -798,8 +787,6 @@ class _OSMMapPageState extends State<OSMMapPage> {
                         const SizedBox(height: 16),
                         FoodGenreSelector(
                           value: category,
-                          parentHint: 'ジャンル',
-                          childHint: '細分類',
                           onChanged: (value) {
                             setSheetState(() {
                               category = value;

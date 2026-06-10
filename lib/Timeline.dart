@@ -219,8 +219,6 @@ class _TimeLinePageState extends State<TimeLinePage>
                       const SizedBox(height: 16),
                       FoodGenreSelector(
                         value: category,
-                        parentHint: 'ジャンル',
-                        childHint: '細分類',
                         onChanged: (value) {
                           setSheetState(() {
                             category = value;
@@ -511,15 +509,6 @@ class InstaPostCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Chip(label: Text(post.category)),
-                    Chip(label: Text(post.priceRange)),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 Text(
                   post.comment,
                   style: const TextStyle(fontSize: 14, height: 1.45),

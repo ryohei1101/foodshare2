@@ -16,12 +16,14 @@ class NewOrLoginPage extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final contentMinHeight = constraints.maxHeight <= 50
+                ? 0.0
+                : constraints.maxHeight - 50;
+
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 50,
-                ),
+                constraints: BoxConstraints(minHeight: contentMinHeight),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

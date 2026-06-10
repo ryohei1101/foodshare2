@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -89,6 +90,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
   String? _selectedTagFilter;
   final List<Offset> _circleGesturePoints = [];
   bool _isFilterSheetOpen = false;
+  bool _isDrawingCircleSearch = false;
   static const double _searchRadiusKm = 1.0;
 
   final List<String> _priceFilters = const [
@@ -162,6 +164,9 @@ class _OSMMapPageState extends State<OSMMapPage> {
       _selectedCategoryFilter != null ||
       _selectedTagFilter != null;
 
+  bool get _hasResettableMapState =>
+      _hasActiveFilters || _focusedPoint != null || _pendingPinPoint != null;
+
   void _handleMapFocusRequest() {
     final request = MapFocusStore.request.value;
     if (!mounted || request == null) {
@@ -183,6 +188,9 @@ class _OSMMapPageState extends State<OSMMapPage> {
   void _clearFilters() {
     setState(() {
       _searchCenter = null;
+      _focusedPoint = null;
+      _focusedLabel = '';
+      _pendingPinPoint = null;
       _selectedPriceFilter = null;
       _selectedCategoryFilter = null;
       _selectedTagFilter = null;
@@ -738,143 +746,152 @@ class _OSMMapPageState extends State<OSMMapPage> {
     String? category = _selectedCategoryFilter;
     String? tag = _selectedTagFilter;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  8,
-                  16,
-                  MediaQuery.of(context).viewInsets.bottom + 24,
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        '周辺の条件で探す',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setSheetState) {
+              return SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    8,
+                    16,
+                    MediaQuery.of(context).viewInsets.bottom + 24,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '周辺の条件で探す',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _searchCenter == null
-                            ? '現在表示している地図周辺から探します。'
-                            : '囲った中心から1km周辺を探します。',
-                        style: const TextStyle(
-                          color: foodMuted,
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(height: 8),
+                        Text(
+                          _searchCenter == null
+                              ? '現在表示している地図周辺から探します。'
+                              : '囲った中心から1km周辺を探します。',
+                          style: const TextStyle(
+                            color: foodMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      DropdownButtonFormField<String>(
-                        initialValue: price,
-                        hint: const Text('価格帯'),
-                        items: _priceFilters
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setSheetState(() {
-                            price = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: category,
-                        hint: const Text('カテゴリ'),
-                        items: _categoryFilters
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setSheetState(() {
-                            category = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: tag,
-                        hint: const Text('タグ'),
-                        items: _tagFilters
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setSheetState(() {
-                            tag = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _searchCenter ??= _mapController.camera.center;
-                            _selectedPriceFilter = price;
-                            _selectedCategoryFilter = category;
-                            _selectedTagFilter = tag;
-                          });
-                          Navigator.pop(context);
-                          _fetchPostPins();
-                        },
-                        icon: const Icon(Icons.search),
-                        label: const Text('検索する'),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _searchCenter = null;
-                            _selectedPriceFilter = null;
-                            _selectedCategoryFilter = null;
-                            _selectedTagFilter = null;
-                          });
-                          Navigator.pop(context);
-                          _fetchPostPins();
-                        },
-                        child: const Text('条件をクリア'),
-                      ),
-                    ],
+                        const SizedBox(height: 18),
+                        DropdownButtonFormField<String>(
+                          initialValue: price,
+                          hint: const Text('価格帯'),
+                          items: _priceFilters
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(value),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            setSheetState(() {
+                              price = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: category,
+                          hint: const Text('カテゴリ'),
+                          items: _categoryFilters
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(value),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            setSheetState(() {
+                              category = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: tag,
+                          hint: const Text('タグ'),
+                          items: _tagFilters
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(value),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            setSheetState(() {
+                              tag = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _searchCenter ??= _mapController.camera.center;
+                              _selectedPriceFilter = price;
+                              _selectedCategoryFilter = category;
+                              _selectedTagFilter = tag;
+                            });
+                            Navigator.pop(context);
+                            _fetchPostPins();
+                          },
+                          icon: const Icon(Icons.search),
+                          label: const Text('検索する'),
+                        ),
+                        const SizedBox(height: 10),
+                        OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _searchCenter = null;
+                              _selectedPriceFilter = null;
+                              _selectedCategoryFilter = null;
+                              _selectedTagFilter = null;
+                            });
+                            Navigator.pop(context);
+                            _fetchPostPins();
+                          },
+                          child: const Text('条件をクリア'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    _isFilterSheetOpen = false;
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      _isFilterSheetOpen = false;
+    }
   }
 
   void _startCircleGesture(Offset point) {
-    _circleGesturePoints
-      ..clear()
-      ..add(point);
+    if (_isFilterSheetOpen) {
+      return;
+    }
+
+    setState(() {
+      _isDrawingCircleSearch = false;
+      _circleGesturePoints
+        ..clear()
+        ..add(point);
+    });
   }
 
   void _updateCircleGesture(Offset point) {
@@ -882,12 +899,22 @@ class _OSMMapPageState extends State<OSMMapPage> {
       return;
     }
 
-    _circleGesturePoints.add(point);
+    final shouldShowTrace =
+        _circleGesturePoints.isNotEmpty &&
+        (point - _circleGesturePoints.first).distance > 14;
+
+    setState(() {
+      _isDrawingCircleSearch = _isDrawingCircleSearch || shouldShowTrace;
+      _circleGesturePoints.add(point);
+    });
   }
 
   void _finishCircleGesture() {
-    if (_isFilterSheetOpen || _circleGesturePoints.length < 18) {
-      _circleGesturePoints.clear();
+    if (_isFilterSheetOpen || _circleGesturePoints.length < 10) {
+      setState(() {
+        _isDrawingCircleSearch = false;
+        _circleGesturePoints.clear();
+      });
       return;
     }
 
@@ -903,18 +930,48 @@ class _OSMMapPageState extends State<OSMMapPage> {
     final width = maxX - minX;
     final height = maxY - minY;
     final ratio = height == 0 ? 0.0 : width / height;
+    final center = Offset((minX + maxX) / 2, (minY + maxY) / 2);
+    var totalAngle = 0.0;
+    var pathLength = 0.0;
 
-    _circleGesturePoints.clear();
+    double angleOf(Offset point) {
+      return math.atan2(point.dy - center.dy, point.dx - center.dx);
+    }
 
-    if (closeDistance > 80 ||
-        width < 90 ||
-        height < 90 ||
-        ratio < 0.55 ||
-        ratio > 1.8) {
+    var previousAngle = angleOf(_circleGesturePoints.first);
+    for (var i = 1; i < _circleGesturePoints.length; i += 1) {
+      pathLength +=
+          (_circleGesturePoints[i] - _circleGesturePoints[i - 1]).distance;
+      final nextAngle = angleOf(_circleGesturePoints[i]);
+      var delta = nextAngle - previousAngle;
+      while (delta > math.pi) {
+        delta -= math.pi * 2;
+      }
+      while (delta < -math.pi) {
+        delta += math.pi * 2;
+      }
+      totalAngle += delta;
+      previousAngle = nextAngle;
+    }
+
+    setState(() {
+      _isDrawingCircleSearch = false;
+      _circleGesturePoints.clear();
+    });
+
+    final maxSide = math.max(width, height);
+    final isCircleLike =
+        width >= 70 &&
+        height >= 70 &&
+        ratio >= 0.45 &&
+        ratio <= 2.2 &&
+        pathLength >= maxSide * 1.8 &&
+        (closeDistance <= maxSide * 0.85 || totalAngle.abs() >= math.pi * 1.35);
+
+    if (!isCircleLike) {
       return;
     }
 
-    final center = Offset((minX + maxX) / 2, (minY + maxY) / 2);
     final centerPoint = _mapController.camera.pointToLatLng(
       math.Point(center.dx, center.dy),
     );
@@ -930,7 +987,12 @@ class _OSMMapPageState extends State<OSMMapPage> {
           onPointerDown: (event) => _startCircleGesture(event.localPosition),
           onPointerMove: (event) => _updateCircleGesture(event.localPosition),
           onPointerUp: (_) => _finishCircleGesture(),
-          onPointerCancel: (_) => _circleGesturePoints.clear(),
+          onPointerCancel: (_) {
+            setState(() {
+              _isDrawingCircleSearch = false;
+              _circleGesturePoints.clear();
+            });
+          },
           child: FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -1088,6 +1150,14 @@ class _OSMMapPageState extends State<OSMMapPage> {
             ],
           ),
         ),
+        if (_isDrawingCircleSearch && _circleGesturePoints.length > 1)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _CircleSearchPainter(points: _circleGesturePoints),
+              ),
+            ),
+          ),
         Positioned(
           top: 16,
           left: 16,
@@ -1101,11 +1171,11 @@ class _OSMMapPageState extends State<OSMMapPage> {
                 child: const Icon(Icons.search),
               ),
               const SizedBox(width: 10),
-              if (_hasActiveFilters)
+              if (_hasResettableMapState)
                 FloatingActionButton.small(
                   heroTag: 'map-filter-reset',
-                  backgroundColor: Colors.white,
-                  foregroundColor: foodMuted,
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
                   onPressed: _clearFilters,
                   child: const Icon(Icons.close),
                 ),
@@ -1269,5 +1339,37 @@ class _OSMMapPageState extends State<OSMMapPage> {
           ),
       ],
     );
+  }
+}
+
+class _CircleSearchPainter extends CustomPainter {
+  const _CircleSearchPainter({required this.points});
+
+  final List<Offset> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) {
+      return;
+    }
+
+    final paint = Paint()
+      ..color = foodPrimary.withValues(alpha: 0.72)
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    final path = ui.Path()..moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircleSearchPainter oldDelegate) {
+    return true;
   }
 }

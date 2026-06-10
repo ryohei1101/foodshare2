@@ -83,7 +83,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
   LatLng? _focusedPoint;
   String _focusedLabel = '';
   LatLng? _searchCenter;
-  List<FoodPost> _postPins = [];
+  List<List<FoodPost>> _postGroups = [];
   final Set<String> _checkedShopKeys = {};
   String? _selectedPriceFilter;
   String? _selectedCategoryFilter;
@@ -221,7 +221,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
       final posts = data['posts'] as List<dynamic>? ?? [];
 
       setState(() {
-        _postPins = posts
+        final nextPostPins = posts
             .map((post) => FoodPost.fromJson(post as Map<String, dynamic>))
             .where((post) => post.latitude != null && post.longitude != null)
             .where((post) {
@@ -236,16 +236,17 @@ class _OSMMapPageState extends State<OSMMapPage> {
               return distanceKm <= _searchRadiusKm;
             })
             .toList();
+        _postGroups = _groupPosts(nextPostPins);
       });
     } catch (e) {
       debugPrint(e.toString());
     }
   }
 
-  List<List<FoodPost>> get _postGroups {
+  List<List<FoodPost>> _groupPosts(List<FoodPost> postsToGroup) {
     final groups = <String, List<FoodPost>>{};
 
-    for (final post in _postPins) {
+    for (final post in postsToGroup) {
       final lat = post.latitude?.toStringAsFixed(5) ?? '';
       final lon = post.longitude?.toStringAsFixed(5) ?? '';
       final key = '$lat|$lon';
@@ -1170,21 +1171,19 @@ class _OSMMapPageState extends State<OSMMapPage> {
           left: 16,
           child: Row(
             children: [
-              FloatingActionButton.small(
-                heroTag: 'map-filter',
-                backgroundColor: Colors.white,
-                foregroundColor: foodPrimary,
+              _MapControlButton(
+                icon: Icons.search,
+                label: '検索',
                 onPressed: () => _showFilterSheet(),
-                child: const Icon(Icons.search),
               ),
               const SizedBox(width: 10),
               if (_hasResettableMapState)
-                FloatingActionButton.small(
-                  heroTag: 'map-filter-reset',
+                _MapControlButton(
+                  icon: Icons.close,
+                  label: 'リセット',
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
                   onPressed: _clearFilters,
-                  child: const Icon(Icons.close),
                 ),
             ],
           ),
@@ -1345,6 +1344,57 @@ class _OSMMapPageState extends State<OSMMapPage> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _MapControlButton extends StatelessWidget {
+  const _MapControlButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.backgroundColor = Colors.white,
+    this.foregroundColor = foodPrimary,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(999),
+      elevation: 4,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onPressed,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 52, minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: foregroundColor),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: foregroundColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -14,12 +14,14 @@ class InstaHome extends StatefulWidget {
   final String email;
   final String birthday;
   final String profileImage;
+  final String username;
 
   const InstaHome({
     super.key,
     required this.email,
     required this.birthday,
     required this.profileImage,
+    required this.username,
   });
 
   @override
@@ -44,6 +46,7 @@ class _InstaHomeState extends State<InstaHome> {
       email: widget.email,
       birthday: widget.birthday,
       profileImage: widget.profileImage,
+      username: widget.username,
     ),
   ];
 

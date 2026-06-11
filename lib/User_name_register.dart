@@ -38,7 +38,7 @@ class _UserNamePageState extends State<UserNamePage> {
     super.dispose();
   }
 
-  Future<bool> registerUser({
+  Future<_RegistrationResult> registerUser({
     required String email,
     required String password,
     required String username,
@@ -62,9 +62,16 @@ class _UserNamePageState extends State<UserNamePage> {
         }),
       );
 
-      return response.statusCode == 200 || response.statusCode == 201;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final detail = data["detail"] as String? ?? "登録に失敗しました";
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return const _RegistrationResult(success: true);
+      }
+
+      return _RegistrationResult(success: false, message: detail);
     } catch (_) {
-      return false;
+      return const _RegistrationResult(success: false, message: "通信エラーが発生しました");
     }
   }
 
@@ -82,7 +89,7 @@ class _UserNamePageState extends State<UserNamePage> {
       isLoading = true;
     });
 
-    final isSuccess = await registerUser(
+    final result = await registerUser(
       email: widget.email,
       password: widget.password,
       username: username,
@@ -97,7 +104,7 @@ class _UserNamePageState extends State<UserNamePage> {
       isLoading = false;
     });
 
-    if (isSuccess) {
+    if (result.success) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -105,13 +112,14 @@ class _UserNamePageState extends State<UserNamePage> {
             email: widget.email,
             birthday: widget.birthday.toIso8601String().split("T")[0],
             profileImage: widget.profileImage,
+            username: username,
           ),
         ),
       );
     } else {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("登録に失敗しました")));
+      ).showSnackBar(SnackBar(content: Text(result.message)));
     }
   }
 
@@ -137,8 +145,12 @@ class _UserNamePageState extends State<UserNamePage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            InstaHome(email: 'dummy5@test.com', birthday: '', profileImage: ""),
+        builder: (context) => const InstaHome(
+          email: 'dummy5@test.com',
+          birthday: '',
+          profileImage: "",
+          username: 'dummy5',
+        ),
       ),
     );
   }
@@ -201,4 +213,11 @@ class _UserNamePageState extends State<UserNamePage> {
       ],
     );
   }
+}
+
+class _RegistrationResult {
+  const _RegistrationResult({required this.success, this.message = ""});
+
+  final bool success;
+  final String message;
 }

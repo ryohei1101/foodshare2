@@ -111,7 +111,7 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) => _search(),
                   decoration: InputDecoration(
-                    hintText: 'ユーザーIDで検索',
+                    hintText: 'ユーザー名で検索',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: IconButton(
                       onPressed: _search,
@@ -135,7 +135,7 @@ class _AccountSearchPageState extends State<AccountSearchPage> {
                 child: _usersFuture == null
                     ? const Center(
                         child: Text(
-                          'ユーザーIDを入力してください',
+                          'ユーザー名を入力してください',
                           style: TextStyle(color: foodMuted),
                         ),
                       )

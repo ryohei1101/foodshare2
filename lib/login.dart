@@ -66,6 +66,7 @@ class _LoginPageState extends State<LoginPage> {
               email: data["email"] ?? "",
               birthday: data["birthday"] ?? "",
               profileImage: data["profile_image"] ?? "",
+              username: data["username"] ?? "",
             ),
           ),
         );
@@ -115,6 +116,7 @@ class _LoginPageState extends State<LoginPage> {
           email: 'dummy5@test.com',
           birthday: '',
           profileImage: '',
+          username: 'dummy5',
         ),
       ),
     );

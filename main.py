@@ -119,6 +119,34 @@ def ensure_release_tables():
 
     cur.execute(
         """
+        SELECT COUNT(*)
+        FROM (
+            SELECT LOWER(TRIM(username)) AS normalized_username
+            FROM users
+            WHERE COALESCE(TRIM(username), '') <> ''
+            GROUP BY LOWER(TRIM(username))
+            HAVING COUNT(*) > 1
+        ) duplicated_usernames
+        """
+    )
+
+    duplicated_username_count = cur.fetchone()[0]
+
+    if duplicated_username_count == 0:
+
+        cur.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique
+            ON users (LOWER(TRIM(username)))
+            WHERE COALESCE(TRIM(username), '') <> ''
+            """
+        )
+    else:
+
+        print("users_username_unique skipped because duplicate usernames exist")
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS user_blocks (
             blocker_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
             blocked_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
@@ -817,6 +845,38 @@ def register(user: User):
 
         print("INSERT前")
 
+        normalized_username = user.username.strip()
+
+        if not normalized_username:
+
+            cur.close()
+            conn.close()
+
+            raise HTTPException(
+                status_code=400,
+                detail="ユーザー名を入力してください"
+            )
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM users
+            WHERE LOWER(TRIM(username)) = LOWER(TRIM(%s))
+            LIMIT 1
+            """,
+            (normalized_username,)
+        )
+
+        if cur.fetchone():
+
+            cur.close()
+            conn.close()
+
+            raise HTTPException(
+                status_code=409,
+                detail="そのユーザー名は既に使われています"
+            )
+
         cur.execute(
             """
             SELECT verified_at
@@ -877,7 +937,7 @@ def register(user: User):
             )
             """,
             (
-                user.username,
+                normalized_username,
 
                 user.email,
 
@@ -913,14 +973,15 @@ def register(user: User):
 
     except Exception as e:
 
+        if isinstance(e, HTTPException):
+
+            raise e
+
         print("エラー内容↓↓↓↓↓↓↓↓")
 
         print(e)
 
-        return {
-            "status": "error",
-            "detail": str(e)
-        }
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/request-email-verification")
@@ -1565,9 +1626,9 @@ def get_users(
 
     if search_query:
 
-        conditions.append("(COALESCE(u.username, '') ILIKE %s OR u.email ILIKE %s)")
+        conditions.append("COALESCE(u.username, '') ILIKE %s")
 
-        params.extend([f"%{search_query}%", f"%{search_query}%"])
+        params.append(f"%{search_query}%")
 
     if viewer_email:
 
@@ -1780,9 +1841,9 @@ def search_dm_users(
 
     if search_query:
 
-        query_clause = "AND (COALESCE(u.username, '') ILIKE %s OR u.email ILIKE %s)"
+        query_clause = "AND COALESCE(u.username, '') ILIKE %s"
 
-        params.extend([f"%{search_query}%", f"%{search_query}%"])
+        params.append(f"%{search_query}%")
 
     params.append(safe_limit)
 

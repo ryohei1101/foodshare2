@@ -14,12 +14,14 @@ class ProfilePage extends StatefulWidget {
   final String email;
   final String birthday;
   final String profileImage;
+  final String username;
 
   const ProfilePage({
     super.key,
     required this.email,
     required this.birthday,
     required this.profileImage,
+    required this.username,
   });
 
   @override
@@ -414,7 +416,9 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  widget.email,
+                                  widget.username.isEmpty
+                                      ? widget.email
+                                      : widget.username,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(

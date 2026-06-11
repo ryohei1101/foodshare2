@@ -85,16 +85,19 @@ class _OSMMapPageState extends State<OSMMapPage> {
   LatLng? _focusedPoint;
   String _focusedLabel = '';
   LatLng? _searchCenter;
+  List<FoodPost> _allPostPins = [];
   List<List<FoodPost>> _postGroups = [];
   final Set<String> _checkedShopKeys = {};
   String? _selectedPriceFilter;
   String? _selectedCategoryFilter;
   String? _selectedTagFilter;
   final List<Offset> _circleGesturePoints = [];
+  Offset? _lastCircleGesturePoint;
   final ValueNotifier<List<Offset>> _circleGestureTrace =
       ValueNotifier<List<Offset>>(const []);
   bool _isFilterSheetOpen = false;
   static const double _searchRadiusKm = 1.0;
+  static const int _maxCircleGesturePoints = 160;
 
   final List<String> _priceFilters = const [
     "~2000円",
@@ -175,8 +178,8 @@ class _OSMMapPageState extends State<OSMMapPage> {
       _selectedPriceFilter = null;
       _selectedCategoryFilter = null;
       _selectedTagFilter = null;
+      _postGroups = _groupPosts(_allPostPins);
     });
-    _fetchPostPins();
   }
 
   Future<void> _fetchPostPins() async {
@@ -184,10 +187,6 @@ class _OSMMapPageState extends State<OSMMapPage> {
       final query = <String, String>{
         'limit': '200',
         'viewer_email': widget.email,
-        if (_selectedPriceFilter != null) 'price_range': _selectedPriceFilter!,
-        if (_selectedCategoryFilter != null)
-          'category': _selectedCategoryFilter!,
-        if (_selectedTagFilter != null) 'tag': _selectedTagFilter!,
       };
       final response = await http.get(
         Uri.http('10.0.2.2:8000', '/posts', query),
@@ -201,26 +200,46 @@ class _OSMMapPageState extends State<OSMMapPage> {
       final posts = data['posts'] as List<dynamic>? ?? [];
 
       setState(() {
-        final nextPostPins = posts
+        _allPostPins = posts
             .map((post) => FoodPost.fromJson(post as Map<String, dynamic>))
             .where((post) => post.latitude != null && post.longitude != null)
-            .where((post) {
-              if (_searchCenter == null) {
-                return true;
-              }
-              final distanceKm = const Distance().as(
-                LengthUnit.Kilometer,
-                _searchCenter!,
-                LatLng(post.latitude!, post.longitude!),
-              );
-              return distanceKm <= _searchRadiusKm;
-            })
             .toList();
-        _postGroups = _groupPosts(nextPostPins);
+        _postGroups = _groupPosts(_filteredPostPins());
       });
     } catch (e) {
       debugPrint(e.toString());
     }
+  }
+
+  List<FoodPost> _filteredPostPins() {
+    return _allPostPins.where((post) {
+      if (_selectedPriceFilter != null &&
+          post.priceRange != _selectedPriceFilter) {
+        return false;
+      }
+
+      if (_selectedCategoryFilter != null &&
+          post.category != _selectedCategoryFilter) {
+        return false;
+      }
+
+      if (_selectedTagFilter != null &&
+          !post.tags.contains(_selectedTagFilter!)) {
+        return false;
+      }
+
+      final searchCenter = _searchCenter;
+      if (searchCenter == null) {
+        return true;
+      }
+
+      final distanceKm = const Distance().as(
+        LengthUnit.Kilometer,
+        searchCenter,
+        LatLng(post.latitude!, post.longitude!),
+      );
+      return distanceKm <= _searchRadiusKm;
+    }).toList();
   }
 
   List<List<FoodPost>> _groupPosts(List<FoodPost> postsToGroup) {
@@ -706,9 +725,6 @@ class _OSMMapPageState extends State<OSMMapPage> {
 
     _isFilterSheetOpen = true;
     if (searchCenter != null) {
-      setState(() {
-        _searchCenter = searchCenter;
-      });
       _mapController.move(searchCenter, 16);
     }
 
@@ -755,7 +771,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          _searchCenter == null
+                          searchCenter == null && _searchCenter == null
                               ? '現在表示している地図周辺から探します。'
                               : '囲った中心から1km周辺を探します。',
                           style: const TextStyle(
@@ -851,13 +867,16 @@ class _OSMMapPageState extends State<OSMMapPage> {
                         ElevatedButton.icon(
                           onPressed: () {
                             setState(() {
-                              _searchCenter ??= _mapController.camera.center;
+                              _searchCenter =
+                                  searchCenter ??
+                                  _searchCenter ??
+                                  _mapController.camera.center;
                               _selectedPriceFilter = price;
                               _selectedCategoryFilter = category;
                               _selectedTagFilter = tag;
+                              _postGroups = _groupPosts(_filteredPostPins());
                             });
                             Navigator.pop(context);
-                            _fetchPostPins();
                           },
                           icon: const Icon(Icons.search),
                           label: const Text('検索する'),
@@ -870,9 +889,9 @@ class _OSMMapPageState extends State<OSMMapPage> {
                               _selectedPriceFilter = null;
                               _selectedCategoryFilter = null;
                               _selectedTagFilter = null;
+                              _postGroups = _groupPosts(_allPostPins);
                             });
                             Navigator.pop(context);
-                            _fetchPostPins();
                           },
                           child: const Text('条件をクリア'),
                         ),
@@ -896,21 +915,31 @@ class _OSMMapPageState extends State<OSMMapPage> {
     }
 
     _circleGestureTrace.value = const [];
+    _lastCircleGesturePoint = point;
     _circleGesturePoints
       ..clear()
       ..add(point);
   }
 
   void _updateCircleGesture(Offset point) {
-    if (_isFilterSheetOpen) {
+    if (_isFilterSheetOpen || _circleGesturePoints.isEmpty) {
       return;
     }
 
-    final shouldShowTrace =
-        _circleGesturePoints.isNotEmpty &&
-        (point - _circleGesturePoints.first).distance > 14;
+    final lastPoint = _lastCircleGesturePoint ?? _circleGesturePoints.last;
+    if ((point - lastPoint).distance < 8) {
+      return;
+    }
 
+    _lastCircleGesturePoint = point;
+    if (_circleGesturePoints.length >= _maxCircleGesturePoints) {
+      _circleGesturePoints.removeAt(0);
+    }
     _circleGesturePoints.add(point);
+
+    final shouldShowTrace =
+        (point - _circleGesturePoints.first).distance > 22 &&
+        _circleGesturePoints.length >= 4;
 
     if (shouldShowTrace) {
       _circleGestureTrace.value = List<Offset>.unmodifiable(
@@ -921,6 +950,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
 
   void _clearCircleGestureTrace() {
     _circleGesturePoints.clear();
+    _lastCircleGesturePoint = null;
     _circleGestureTrace.value = const [];
   }
 

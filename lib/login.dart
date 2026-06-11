@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:foodshare/New_or_login.dart';
 import 'package:foodshare/Standard.dart';
@@ -19,6 +20,8 @@ class _LoginPageState extends State<LoginPage> {
 
   String errorMessage = "";
   bool isLoading = false;
+  int _debugTapCount = 0;
+  DateTime? _lastDebugTapAt;
 
   @override
   void dispose() {
@@ -85,17 +88,52 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  void _handleDebugLoginTap() {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastDebugTapAt == null ||
+        now.difference(_lastDebugTapAt!) > const Duration(seconds: 2)) {
+      _debugTapCount = 0;
+    }
+
+    _lastDebugTapAt = now;
+    _debugTapCount += 1;
+
+    if (_debugTapCount < 3) {
+      return;
+    }
+
+    _debugTapCount = 0;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const InstaHome(
+          email: 'dummy5@test.com',
+          birthday: '',
+          profileImage: '',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FoodScaffold(
       children: [
         const SizedBox(height: 12),
-        const Text(
-          "ログイン",
-          style: TextStyle(
-            color: foodInk,
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleDebugLoginTap,
+          child: const Text(
+            "ログイン",
+            style: TextStyle(
+              color: foodInk,
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
         const SizedBox(height: 8),

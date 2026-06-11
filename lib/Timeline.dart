@@ -159,6 +159,15 @@ class _TimeLinePageState extends State<TimeLinePage>
                         ),
                       ),
                       const SizedBox(height: 16),
+                      const Text(
+                        'ジャンル',
+                        style: TextStyle(
+                          color: foodInk,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       FoodGenreSelector(
                         value: category,
                         onChanged: (value) {

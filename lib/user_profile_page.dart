@@ -352,6 +352,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         },
                       ),
                       const SizedBox(height: 16),
+                      const Text(
+                        'ジャンル',
+                        style: TextStyle(
+                          color: foodInk,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       FoodGenreSelector(
                         value: category,
                         recommendedGenreNames:

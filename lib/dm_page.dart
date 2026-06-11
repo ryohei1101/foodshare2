@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
@@ -332,6 +333,26 @@ class _DmThreadPageState extends State<DmThreadPage> {
         .toList();
   }
 
+  Future<List<FoodUser>> _fetchMembers() async {
+    final uri = Uri.http(
+      '10.0.2.2:8000',
+      '/dm/threads/${widget.thread.id}/members',
+      {'email': widget.currentEmail, 'thread_type': widget.thread.threadType},
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception('メンバーを取得できませんでした');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final members = data['members'] as List<dynamic>? ?? [];
+
+    return members
+        .map((member) => FoodUser.fromJson(member as Map<String, dynamic>))
+        .toList();
+  }
+
   void _reloadMessages() {
     setState(() {
       _messagesFuture = _fetchMessages();
@@ -497,6 +518,117 @@ class _DmThreadPageState extends State<DmThreadPage> {
     _reloadMessages();
   }
 
+  Future<void> _openRoulette() async {
+    List<FoodUser> members;
+
+    try {
+      members = await _fetchMembers();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('メンバーを取得できませんでした')));
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (members.length < 2) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ルーレットには2人以上必要です')));
+      return;
+    }
+
+    final selectedEmails = members.map((member) => member.email).toSet();
+    final selectedMembers = await showModalBottomSheet<List<FoodUser>>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'ルーレットメンバー',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: members.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final member = members[index];
+                          final selected = selectedEmails.contains(
+                            member.email,
+                          );
+
+                          return CheckboxListTile(
+                            value: selected,
+                            onChanged: (value) {
+                              setSheetState(() {
+                                if (value == true) {
+                                  selectedEmails.add(member.email);
+                                } else {
+                                  selectedEmails.remove(member.email);
+                                }
+                              });
+                            },
+                            secondary: _RouletteAvatar(user: member, size: 42),
+                            title: Text(_displayUserName(member)),
+                            subtitle: Text(member.email),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: selectedEmails.length < 2
+                          ? null
+                          : () {
+                              Navigator.pop(
+                                context,
+                                members
+                                    .where(
+                                      (member) =>
+                                          selectedEmails.contains(member.email),
+                                    )
+                                    .toList(),
+                              );
+                            },
+                      icon: const Icon(Icons.casino_outlined),
+                      label: const Text('ルーレット開始'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedMembers == null || selectedMembers.length < 2) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _RouletteResultDialog(members: selectedMembers),
+    );
+  }
+
   Future<void> _votePoll(DmPoll poll, Set<int> optionIds) async {
     if (optionIds.isEmpty) {
       ScaffoldMessenger.of(
@@ -647,6 +779,12 @@ class _DmThreadPageState extends State<DmThreadPage> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
+                    tooltip: 'ルーレット',
+                    onPressed: _openRoulette,
+                    icon: const Icon(Icons.casino_outlined),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
                     tooltip: 'アンケート',
                     onPressed: _sendPoll,
                     icon: const Icon(Icons.how_to_vote_outlined),
@@ -728,6 +866,121 @@ class _SuggestionList extends StatelessWidget {
       },
     );
   }
+}
+
+class _RouletteResultDialog extends StatefulWidget {
+  const _RouletteResultDialog({required this.members});
+
+  final List<FoodUser> members;
+
+  @override
+  State<_RouletteResultDialog> createState() => _RouletteResultDialogState();
+}
+
+class _RouletteResultDialogState extends State<_RouletteResultDialog> {
+  final _random = Random();
+  Timer? _timer;
+  late FoodUser _currentUser;
+  bool _finished = false;
+  int _tick = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = widget.members.first;
+    _timer = Timer.periodic(const Duration(milliseconds: 90), (timer) {
+      if (!mounted) return;
+      setState(() {
+        _tick += 1;
+        _currentUser = widget.members[_random.nextInt(widget.members.length)];
+        if (_tick >= 28) {
+          _finished = true;
+          _timer?.cancel();
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_finished ? '当たり！' : 'ルーレット中'),
+      content: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 120),
+        child: Column(
+          key: ValueKey('${_currentUser.email}-$_tick'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _RouletteAvatar(user: _currentUser, size: 176),
+            const SizedBox(height: 18),
+            Text(
+              _displayUserName(_currentUser),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: foodInk,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _currentUser.email,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: foodMuted),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _finished ? () => Navigator.pop(context) : null,
+          child: const Text('閉じる'),
+        ),
+      ],
+    );
+  }
+}
+
+class _RouletteAvatar extends StatelessWidget {
+  const _RouletteAvatar({required this.user, required this.size});
+
+  final FoodUser user;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: foodSurface,
+          borderRadius: BorderRadius.circular(size * 0.22),
+          border: Border.all(color: foodLine),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(size * 0.04),
+          child: Image.network(
+            user.profileImageUrl,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) {
+              return const Center(child: Icon(Icons.person, color: foodMuted));
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _displayUserName(FoodUser user) {
+  return user.username.isEmpty ? user.email : user.username;
 }
 
 class _ThreadList extends StatelessWidget {

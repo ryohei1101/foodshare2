@@ -2729,6 +2729,132 @@ def get_dm_messages(
     }
 
 
+@app.get("/dm/threads/{thread_id}/members")
+def get_dm_thread_members(
+    thread_id: int,
+    email: str,
+    thread_type: str = "direct"
+):
+
+    ensure_dm_tables()
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    if thread_type == "direct":
+
+        cur.execute(
+            """
+            SELECT user_one_email, user_two_email
+            FROM dm_threads
+            WHERE id = %s
+              AND (user_one_email = %s OR user_two_email = %s)
+            """,
+            (
+                thread_id,
+                email,
+                email,
+            )
+        )
+
+        thread_row = cur.fetchone()
+
+        if thread_row is None:
+
+            cur.close()
+            conn.close()
+
+            raise HTTPException(
+                status_code=404,
+                detail="thread not found"
+            )
+
+        member_emails = [thread_row[0], thread_row[1]]
+
+        cur.execute(
+            """
+            SELECT username, email, profile_image
+            FROM users
+            WHERE email = ANY(%s)
+            ORDER BY CASE WHEN email = %s THEN 0 ELSE 1 END,
+                     LOWER(COALESCE(NULLIF(username, ''), email)) ASC
+            """,
+            (
+                member_emails,
+                email,
+            )
+        )
+
+    elif thread_type == "group":
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM dm_group_threads gt
+            JOIN group_members gm ON gm.group_id = gt.group_id
+            WHERE gt.id = %s
+              AND gm.user_email = %s
+            """,
+            (
+                thread_id,
+                email,
+            )
+        )
+
+        if cur.fetchone() is None:
+
+            cur.close()
+            conn.close()
+
+            raise HTTPException(
+                status_code=404,
+                detail="thread not found"
+            )
+
+        cur.execute(
+            """
+            SELECT u.username, u.email, u.profile_image
+            FROM dm_group_threads gt
+            JOIN group_members gm ON gm.group_id = gt.group_id
+            JOIN users u ON u.email = gm.user_email
+            WHERE gt.id = %s
+            ORDER BY gm.joined_at ASC,
+                     LOWER(COALESCE(NULLIF(u.username, ''), u.email)) ASC
+            """,
+            (
+                thread_id,
+            )
+        )
+
+    else:
+
+        cur.close()
+        conn.close()
+
+        raise HTTPException(
+            status_code=400,
+            detail="thread_type must be direct or group"
+        )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "members": [
+            {
+                "username": row[0],
+                "email": row[1],
+                "profile_image": row[2] if row[2] else "",
+                "is_following": False,
+            }
+            for row in rows
+        ]
+    }
+
+
 @app.post("/dm/threads/{thread_id}/messages")
 def send_dm_message(
     thread_id: int,

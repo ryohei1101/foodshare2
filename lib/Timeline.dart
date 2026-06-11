@@ -150,10 +150,18 @@ class _TimeLinePageState extends State<TimeLinePage>
                         ),
                       ),
                       const SizedBox(height: 18),
+                      const Text(
+                        '場所',
+                        style: TextStyle(
+                          color: foodInk,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       TextField(
                         controller: locationController,
                         decoration: const InputDecoration(
-                          labelText: '場所',
                           hintText: '例: 港区、渋谷区',
                           prefixIcon: Icon(Icons.place_outlined),
                         ),

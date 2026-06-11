@@ -745,6 +745,15 @@ class _OSMMapPageState extends State<OSMMapPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
+                        const Text(
+                          '場所',
+                          style: TextStyle(
+                            color: foodInk,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         Text(
                           _searchCenter == null
                               ? '現在表示している地図周辺から探します。'
@@ -793,6 +802,15 @@ class _OSMMapPageState extends State<OSMMapPage> {
                           },
                         ),
                         const SizedBox(height: 16),
+                        const Text(
+                          '価格',
+                          style: TextStyle(
+                            color: foodInk,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
                           initialValue: price,
                           hint: const Text('価格帯'),

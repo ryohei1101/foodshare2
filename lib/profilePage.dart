@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:foodshare/Timeline.dart';
 import 'package:foodshare/account_settings_page.dart';
@@ -11,7 +9,6 @@ import 'package:foodshare/group_list_page.dart';
 import 'package:foodshare/post_attributes.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 
 class ProfilePage extends StatefulWidget {
   final String email;
@@ -30,10 +27,10 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
-  File? selectedImage;
   late Future<List<FoodPost>> _myPostsFuture;
   late Future<Map<String, int>> _followStatsFuture;
   late Future<int> _groupCountFuture;
+  late String _profileImage;
   String? _selectedLocationFilter;
   String? _selectedPriceFilter;
   String? _selectedCategoryFilter;
@@ -65,6 +62,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _profileImage = widget.profileImage;
     _myPostsFuture = _fetchMyPosts();
     _followStatsFuture = _fetchFollowStats();
     _groupCountFuture = _fetchGroupCount();
@@ -81,43 +79,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _reloadProfileCounts();
     }
-  }
-
-  Future<void> uploadImage(File imageFile) async {
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse("http://10.0.2.2:8000/upload-profile-image"),
-    );
-
-    request.fields['email'] = widget.email;
-    request.files.add(
-      await http.MultipartFile.fromPath('file', imageFile.path),
-    );
-
-    final response = await request.send();
-
-    if (response.statusCode == 200) {
-      debugPrint("upload success");
-    } else {
-      debugPrint("upload failed");
-    }
-  }
-
-  Future<void> pickImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-
-    if (image == null) {
-      return;
-    }
-
-    final pickedFile = File(image.path);
-
-    setState(() {
-      selectedImage = pickedFile;
-    });
-
-    await uploadImage(pickedFile);
   }
 
   Future<List<FoodPost>> _fetchMyPosts() async {
@@ -409,7 +370,14 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => AccountSettingsPage(email: widget.email),
+                  builder: (_) => AccountSettingsPage(
+                    email: widget.email,
+                    onProfileImageChanged: (imagePath) {
+                      setState(() {
+                        _profileImage = imagePath;
+                      });
+                    },
+                  ),
                 ),
               );
             },
@@ -439,11 +407,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _ProfileImage(
-                            imageFile: selectedImage,
-                            profileImage: widget.profileImage,
-                            onTap: pickImage,
-                          ),
+                          _ProfileImage(profileImage: _profileImage),
                           const SizedBox(width: 22),
                           Expanded(
                             child: Column(
@@ -636,15 +600,9 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 }
 
 class _ProfileImage extends StatelessWidget {
-  const _ProfileImage({
-    required this.imageFile,
-    required this.profileImage,
-    required this.onTap,
-  });
+  const _ProfileImage({required this.profileImage});
 
-  final File? imageFile;
   final String profileImage;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -652,52 +610,26 @@ class _ProfileImage extends StatelessWidget {
         ? "http://10.0.2.2:8000/$profileImage"
         : "http://10.0.2.2:8000/uploads/cutiestreet.png";
 
-    return Stack(
-      children: [
-        Container(
-          width: 96,
-          height: 96,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFFE4E4E8),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(2),
-            child: ClipOval(
-              child: imageFile != null
-                  ? Image.file(imageFile!, fit: BoxFit.cover)
-                  : Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) {
-                        return Container(
-                          color: foodLine,
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.person, color: foodMuted),
-                        );
-                      },
-                    ),
-            ),
+    return SizedBox(
+      width: 104,
+      height: 104,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3EA),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: foodLine),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) {
+              return const Center(child: Icon(Icons.person, color: foodMuted));
+            },
           ),
         ),
-        Positioned(
-          bottom: 2,
-          right: 2,
-          child: GestureDetector(
-            onTap: onTap,
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: foodPrimary,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 3),
-              ),
-              child: const Icon(Icons.add, color: Colors.white, size: 20),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

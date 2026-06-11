@@ -10,6 +10,7 @@ import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/genre_options.dart';
 import 'package:foodshare/map_focus_store.dart';
 import 'package:foodshare/map_selection_store.dart';
+import 'package:foodshare/post_attributes.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -109,20 +110,6 @@ class _OSMMapPageState extends State<OSMMapPage> {
     "15000~20000円",
     "20000~30000円",
     "30000円以上",
-  ];
-
-  final List<String> _tagFilters = const [
-    "#一人で",
-    "#デート",
-    "#友達と",
-    "#家族と",
-    "#にぎやか",
-    "#落ち着いている",
-    "#男性多め",
-    "#女性多め",
-    "#個室",
-    "#ランチ",
-    "#ディナー",
   ];
 
   @override
@@ -794,17 +781,17 @@ class _OSMMapPageState extends State<OSMMapPage> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          initialValue: tag,
-                          hint: const Text('タグ'),
-                          items: _tagFilters
-                              .map(
-                                (value) => DropdownMenuItem(
-                                  value: value,
-                                  child: Text(value),
-                                ),
-                              )
-                              .toList(),
+                        const Text(
+                          '利用情報',
+                          style: TextStyle(
+                            color: foodInk,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        PostAttributeFilterSelector(
+                          value: tag,
                           onChanged: (value) {
                             setSheetState(() {
                               tag = value;

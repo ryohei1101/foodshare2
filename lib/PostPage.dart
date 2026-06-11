@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/genre_options.dart';
+import 'package:foodshare/post_attributes.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -30,7 +31,7 @@ class _PostPageState extends State<PostPage> {
   final TextEditingController _shopNameController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _commentController = TextEditingController();
-  final Set<String> _selectedTags = {};
+  final Set<String> _selectedAttributes = {};
 
   File? _selectedImage;
   String? _selectedCategory;
@@ -53,20 +54,6 @@ class _PostPageState extends State<PostPage> {
     "15000~20000円",
     "20000~30000円",
     "30000円以上",
-  ];
-
-  final List<String> _tags = const [
-    "#一人で",
-    '#デート',
-    "#友達と",
-    "#家族と",
-    '#にぎやか',
-    "#落ち着いている",
-    "#男性多め",
-    "#女性多め",
-    "#個室",
-    '#ランチ',
-    '#ディナー',
   ];
 
   @override
@@ -141,12 +128,12 @@ class _PostPageState extends State<PostPage> {
     }
   }
 
-  void _toggleTag(String tag) {
+  void _toggleAttribute(String attribute) {
     setState(() {
-      if (_selectedTags.contains(tag)) {
-        _selectedTags.remove(tag);
+      if (_selectedAttributes.contains(attribute)) {
+        _selectedAttributes.remove(attribute);
       } else {
-        _selectedTags.add(tag);
+        _selectedAttributes.add(attribute);
       }
     });
   }
@@ -180,7 +167,7 @@ class _PostPageState extends State<PostPage> {
       request.fields['price_range'] = _selectedPrice!;
       request.fields['location'] = _locationController.text.trim();
       request.fields['comment'] = _commentController.text.trim();
-      request.fields['tags'] = _selectedTags.join(' ');
+      request.fields['tags'] = _selectedAttributes.join(' ');
 
       if (widget.latitude != null) {
         request.fields['latitude'] = widget.latitude.toString();
@@ -372,27 +359,11 @@ class _PostPageState extends State<PostPage> {
               },
             ),
             const SizedBox(height: 24),
-            const FoodSectionTitle('タグ'),
+            const FoodSectionTitle('利用情報'),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _tags.map((tag) {
-                final isSelected = _selectedTags.contains(tag);
-
-                return ChoiceChip(
-                  label: Text(tag),
-                  selected: isSelected,
-                  onSelected: (_) => _toggleTag(tag),
-                  selectedColor: foodPrimary,
-                  backgroundColor: const Color(0xFFFFEFE3),
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : foodPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  side: const BorderSide(color: foodPrimary),
-                );
-              }).toList(),
+            PostAttributeSelector(
+              selectedValues: _selectedAttributes,
+              onToggle: _toggleAttribute,
             ),
             const SizedBox(height: 12),
             const FoodSectionTitle('コメント'),

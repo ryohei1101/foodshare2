@@ -1015,9 +1015,9 @@ def get_posts(
 
     if tag:
 
-        conditions.append("(p.tags ILIKE %s OR p.comment ILIKE %s)")
+        conditions.append("p.tags ILIKE %s")
 
-        params.extend([f"%{tag}%", f"%{tag}%"])
+        params.append(f"%{tag}%")
 
     where_clause = ""
 

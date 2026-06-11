@@ -5,6 +5,7 @@ import 'package:foodshare/Timeline.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/follow_list_page.dart';
 import 'package:foodshare/genre_options.dart';
+import 'package:foodshare/post_attributes.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:foodshare/user_model.dart';
 import 'package:http/http.dart' as http;
@@ -48,20 +49,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
     "15000~20000円",
     "20000~30000円",
     "30000円以上",
-  ];
-
-  final List<String> _tagFilters = const [
-    "#一人で",
-    "#デート",
-    "#友達と",
-    "#家族と",
-    "#にぎやか",
-    "#落ち着いている",
-    "#男性多め",
-    "#女性多め",
-    "#個室",
-    "#ランチ",
-    "#ディナー",
   ];
 
   bool get _hasActivePostFilters =>
@@ -273,22 +260,22 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _tagFilters
-                            .map(
-                              (value) => ChoiceChip(
-                                label: Text(value),
-                                selected: tag == value,
-                                onSelected: (selected) {
-                                  setSheetState(() {
-                                    tag = selected ? value : null;
-                                  });
-                                },
-                              ),
-                            )
-                            .toList(),
+                      const Text(
+                        '利用情報',
+                        style: TextStyle(
+                          color: foodInk,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      PostAttributeFilterSelector(
+                        value: tag,
+                        onChanged: (value) {
+                          setSheetState(() {
+                            tag = value;
+                          });
+                        },
                       ),
                       const SizedBox(height: 22),
                       FilledButton.icon(

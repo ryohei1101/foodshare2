@@ -11,10 +11,14 @@ class PostAttributeGroup {
 const postAttributeGroups = [
   PostAttributeGroup(title: '席', options: ['個室利用', 'テーブル利用', 'カウンター利用']),
   PostAttributeGroup(title: '喫煙', options: ['禁煙', '喫煙']),
-  PostAttributeGroup(
-    title: '利用シーン',
-    options: ['デート', '友達', '一人', '宴会', '接待', '家族', '合コン'],
-  ),
+  PostAttributeGroup(title: '誰と', options: companionOptions),
+];
+
+const companionOptions = ['デート', '友達', '一人', '宴会', '接待', '家族', '合コン'];
+
+const facilityAttributeGroups = [
+  PostAttributeGroup(title: '席', options: ['個室利用', 'テーブル利用', 'カウンター利用']),
+  PostAttributeGroup(title: '喫煙', options: ['禁煙', '喫煙']),
 ];
 
 class PostAttributeSelector extends StatelessWidget {
@@ -79,16 +83,18 @@ class PostAttributeFilterSelector extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.groups = postAttributeGroups,
   });
 
   final String? value;
   final ValueChanged<String?> onChanged;
+  final List<PostAttributeGroup> groups;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: postAttributeGroups.map((group) {
+      children: groups.map((group) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: Column(
@@ -132,4 +138,46 @@ class PostAttributeFilterSelector extends StatelessWidget {
       }).toList(),
     );
   }
+}
+
+class CompanionFilterSelector extends StatelessWidget {
+  const CompanionFilterSelector({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: companionOptions.map((option) {
+        final isSelected = value == option;
+
+        return ChoiceChip(
+          label: Text(option),
+          selected: isSelected,
+          onSelected: (selected) {
+            onChanged(selected ? option : null);
+          },
+          selectedColor: foodPrimary,
+          backgroundColor: const Color(0xFFFFEFE3),
+          labelStyle: TextStyle(
+            color: isSelected ? Colors.white : foodPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+          side: const BorderSide(color: foodPrimary),
+          visualDensity: VisualDensity.compact,
+        );
+      }).toList(),
+    );
+  }
+}
+
+bool isCompanionAttribute(String? value) {
+  return value != null && companionOptions.contains(value);
 }

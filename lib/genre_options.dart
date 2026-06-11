@@ -84,10 +84,12 @@ class FoodGenreSelector extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.recommendedGenreNames = const [],
   });
 
   final String? value;
   final ValueChanged<String?> onChanged;
+  final List<String> recommendedGenreNames;
 
   @override
   Widget build(BuildContext context) {
@@ -121,17 +123,89 @@ class FoodGenreSelector extends StatelessWidget {
                 ),
               ],
             )
-          : _GenreChipGroup(
+          : _GenreParentGroups(
               key: const ValueKey('parents'),
-              children: foodGenres
-                  .map(
-                    (genre) => _GenreChipData(
-                      label: genre.name,
-                      onTap: () => onChanged(genre.name),
-                    ),
-                  )
-                  .toList(),
+              recommendedGenreNames: recommendedGenreNames,
+              onChanged: onChanged,
             ),
+    );
+  }
+}
+
+List<String> recommendedGenreNamesForCompanion(String? companion) {
+  return switch (companion) {
+    'デート' => ['イタリアン・フレンチ', 'バー・ダイニングバー', '和食', 'カフェ・スイーツ'],
+    '友達' => ['居酒屋', '焼肉・ホルモン', '韓国料理', 'お好み焼き・もんじゃ'],
+    '一人' => ['ラーメン', 'カフェ・スイーツ', '和食', '洋食'],
+    '宴会' => ['居酒屋', '焼肉・ホルモン', '中華', '韓国料理'],
+    '接待' => ['和食', 'イタリアン・フレンチ', '焼肉・ホルモン', 'バー・ダイニングバー'],
+    '家族' => ['和食', '洋食', '焼肉・ホルモン', 'カフェ・スイーツ'],
+    '合コン' => ['居酒屋', 'イタリアン・フレンチ', 'バー・ダイニングバー', '韓国料理'],
+    _ => const [],
+  };
+}
+
+class _GenreParentGroups extends StatelessWidget {
+  const _GenreParentGroups({
+    super.key,
+    required this.recommendedGenreNames,
+    required this.onChanged,
+  });
+
+  final List<String> recommendedGenreNames;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final recommended = foodGenres
+        .where((genre) => recommendedGenreNames.contains(genre.name))
+        .toList();
+    final others = foodGenres
+        .where((genre) => !recommendedGenreNames.contains(genre.name))
+        .toList();
+
+    if (recommended.isEmpty) {
+      return _GenreChipGroup(
+        children: foodGenres.map((genre) => _parentChip(genre)).toList(),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'おすすめ',
+          style: TextStyle(
+            color: foodMuted,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _GenreChipGroup(
+          children: recommended.map((genre) => _parentChip(genre)).toList(),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'それ以外',
+          style: TextStyle(
+            color: foodMuted,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _GenreChipGroup(
+          children: others.map((genre) => _parentChip(genre)).toList(),
+        ),
+      ],
+    );
+  }
+
+  _GenreChipData _parentChip(FoodGenre genre) {
+    return _GenreChipData(
+      label: genre.name,
+      onTap: () => onChanged(genre.name),
     );
   }
 }

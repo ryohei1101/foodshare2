@@ -754,6 +754,35 @@ class _OSMMapPageState extends State<OSMMapPage> {
                           ),
                         ),
                         const SizedBox(height: 18),
+                        const Text(
+                          '誰と',
+                          style: TextStyle(
+                            color: foodInk,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        CompanionFilterSelector(
+                          value: isCompanionAttribute(tag) ? tag : null,
+                          onChanged: (value) {
+                            setSheetState(() {
+                              tag = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        FoodGenreSelector(
+                          value: category,
+                          recommendedGenreNames:
+                              recommendedGenreNamesForCompanion(tag),
+                          onChanged: (value) {
+                            setSheetState(() {
+                              category = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
                           initialValue: price,
                           hint: const Text('価格帯'),
@@ -772,17 +801,8 @@ class _OSMMapPageState extends State<OSMMapPage> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        FoodGenreSelector(
-                          value: category,
-                          onChanged: (value) {
-                            setSheetState(() {
-                              category = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
                         const Text(
-                          '利用情報',
+                          '席・喫煙',
                           style: TextStyle(
                             color: foodInk,
                             fontSize: 15,
@@ -791,7 +811,8 @@ class _OSMMapPageState extends State<OSMMapPage> {
                         ),
                         const SizedBox(height: 10),
                         PostAttributeFilterSelector(
-                          value: tag,
+                          value: isCompanionAttribute(tag) ? null : tag,
+                          groups: facilityAttributeGroups,
                           onChanged: (value) {
                             setSheetState(() {
                               tag = value;

@@ -45,6 +45,7 @@ class _TimeLinePageState extends State<TimeLinePage>
   Uri _postsUri({String? followingEmail}) {
     return Uri.http('10.0.2.2:8000', '/posts', {
       'limit': '50',
+      'viewer_email': widget.email,
       if (followingEmail != null) 'following_email': followingEmail,
       if (_selectedLocationFilter != null) 'location': _selectedLocationFilter!,
       if (_selectedCategoryFilter != null) 'category': _selectedCategoryFilter!,
@@ -243,6 +244,7 @@ class _TimeLinePageState extends State<TimeLinePage>
         controller: _tabController,
         children: [
           _PostFeed(
+            currentEmail: widget.email,
             postsFuture: _recommendedPostsFuture,
             onRefresh: _refreshRecommended,
             emptyText: 'まだ投稿がありません',
@@ -250,6 +252,7 @@ class _TimeLinePageState extends State<TimeLinePage>
             onClearFilters: _clearFilters,
           ),
           _PostFeed(
+            currentEmail: widget.email,
             postsFuture: _followingPostsFuture,
             onRefresh: _refreshFollowing,
             emptyText: 'フォロー中のユーザーの投稿はまだありません',
@@ -264,6 +267,7 @@ class _TimeLinePageState extends State<TimeLinePage>
 
 class _PostFeed extends StatelessWidget {
   const _PostFeed({
+    required this.currentEmail,
     required this.postsFuture,
     required this.onRefresh,
     required this.emptyText,
@@ -271,6 +275,7 @@ class _PostFeed extends StatelessWidget {
     required this.onClearFilters,
   });
 
+  final String currentEmail;
   final Future<List<FoodPost>> postsFuture;
   final Future<void> Function() onRefresh;
   final String emptyText;
@@ -324,7 +329,11 @@ class _PostFeed extends StatelessWidget {
               itemCount: posts.length,
               separatorBuilder: (_, __) => const SizedBox(height: 14),
               itemBuilder: (_, index) {
-                return InstaPostCard(post: posts[index]);
+                return InstaPostCard(
+                  post: posts[index],
+                  currentEmail: currentEmail,
+                  onChanged: onRefresh,
+                );
               },
             ),
           ),
@@ -378,9 +387,107 @@ class _FeedMessage extends StatelessWidget {
 }
 
 class InstaPostCard extends StatelessWidget {
-  const InstaPostCard({super.key, required this.post});
+  const InstaPostCard({
+    super.key,
+    required this.post,
+    this.currentEmail,
+    this.onChanged,
+  });
 
   final FoodPost post;
+  final String? currentEmail;
+  final Future<void> Function()? onChanged;
+
+  Future<void> _deletePost(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('投稿を削除しますか？'),
+        content: const Text('この操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || currentEmail == null) {
+      return;
+    }
+
+    final response = await http.delete(
+      Uri.parse(
+        'http://10.0.2.2:8000/posts/${post.id}?user_email=${Uri.encodeComponent(currentEmail!)}',
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response.statusCode == 200 ? '削除しました' : '削除に失敗しました'),
+      ),
+    );
+
+    if (response.statusCode == 200) {
+      await onChanged?.call();
+    }
+  }
+
+  Future<void> _reportPost(BuildContext context) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('投稿を通報'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(hintText: '理由を入力してください'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('送信'),
+          ),
+        ],
+      ),
+    );
+
+    if (reason == null || reason.trim().isEmpty || currentEmail == null) {
+      return;
+    }
+
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2:8000/reports'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'reporter_email': currentEmail,
+        'target_type': 'post',
+        'target_id': post.id.toString(),
+        'target_owner_email': post.userEmail,
+        'reason': reason.trim(),
+      }),
+    );
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response.statusCode == 200 ? '通報しました' : '通報に失敗しました'),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -400,9 +507,11 @@ class InstaPostCard extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             subtitle: Text(post.location),
-            trailing: post.latitude == null || post.longitude == null
-                ? null
-                : IconButton.filledTonal(
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (post.latitude != null && post.longitude != null)
+                  IconButton.filledTonal(
                     tooltip: '地図で見る',
                     icon: const Icon(Icons.map_outlined),
                     onPressed: () {
@@ -413,6 +522,24 @@ class InstaPostCard extends StatelessWidget {
                       Navigator.of(context).popUntil((route) => route.isFirst);
                     },
                   ),
+                if (currentEmail != null)
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        _deletePost(context);
+                      } else if (value == 'report') {
+                        _reportPost(context);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (post.userEmail == currentEmail)
+                        const PopupMenuItem(value: 'delete', child: Text('削除')),
+                      if (post.userEmail != currentEmail)
+                        const PopupMenuItem(value: 'report', child: Text('通報')),
+                    ],
+                  ),
+              ],
+            ),
           ),
           AspectRatio(
             aspectRatio: 1.05,

@@ -183,6 +183,7 @@ class _OSMMapPageState extends State<OSMMapPage> {
     try {
       final query = <String, String>{
         'limit': '200',
+        'viewer_email': widget.email,
         if (_selectedPriceFilter != null) 'price_range': _selectedPriceFilter!,
         if (_selectedCategoryFilter != null)
           'category': _selectedCategoryFilter!,

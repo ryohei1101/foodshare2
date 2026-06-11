@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:foodshare/Timeline.dart';
+import 'package:foodshare/account_settings_page.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/follow_list_page.dart';
 import 'package:foodshare/genre_options.dart';
@@ -397,7 +398,25 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     final isFilteringPosts = _hasActivePostFilters;
 
     return Scaffold(
-      appBar: AppBar(elevation: 0, toolbarHeight: 0),
+      appBar: AppBar(
+        elevation: 0,
+        toolbarHeight: 44,
+        title: const SizedBox.shrink(),
+        actions: [
+          IconButton(
+            tooltip: '設定',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AccountSettingsPage(email: widget.email),
+                ),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
         child: NotificationListener<OverscrollNotification>(
@@ -785,6 +804,7 @@ class _MyPostsGrid extends StatelessWidget {
                       builder: (_) => ProfilePostDetailPage(
                         posts: posts,
                         initialIndex: index,
+                        currentEmail: posts[index].userEmail,
                       ),
                     ),
                   );
@@ -816,10 +836,12 @@ class ProfilePostDetailPage extends StatefulWidget {
     super.key,
     required this.posts,
     required this.initialIndex,
+    required this.currentEmail,
   });
 
   final List<FoodPost> posts;
   final int initialIndex;
+  final String currentEmail;
 
   @override
   State<ProfilePostDetailPage> createState() => _ProfilePostDetailPageState();
@@ -861,7 +883,10 @@ class _ProfilePostDetailPageState extends State<ProfilePostDetailPage> {
         itemBuilder: (context, index) {
           return KeyedSubtree(
             key: _postKeys[index],
-            child: InstaPostCard(post: widget.posts[index]),
+            child: InstaPostCard(
+              post: widget.posts[index],
+              currentEmail: widget.currentEmail,
+            ),
           );
         },
       ),

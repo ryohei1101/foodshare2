@@ -165,6 +165,107 @@ class _UserProfilePageState extends State<UserProfilePage> {
     });
   }
 
+  Future<void> _reportUser() async {
+    final reason = await _showReasonDialog('ユーザーを通報');
+    if (reason == null || reason.trim().isEmpty) {
+      return;
+    }
+
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2:8000/reports'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'reporter_email': widget.currentEmail,
+        'target_type': 'user',
+        'target_id': _user.email,
+        'target_owner_email': _user.email,
+        'reason': reason.trim(),
+      }),
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response.statusCode == 200 ? '通報しました' : '通報に失敗しました'),
+      ),
+    );
+  }
+
+  Future<void> _blockUser() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ブロックしますか？'),
+        content: Text(
+          '${_user.username.isEmpty ? _user.email : _user.username}をブロックします。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ブロック'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2:8000/block'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'blocker_email': widget.currentEmail,
+        'blocked_email': _user.email,
+      }),
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode == 200) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ブロックしました')));
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ブロックに失敗しました')));
+    }
+  }
+
+  Future<String?> _showReasonDialog(String title) {
+    final controller = TextEditingController();
+
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(hintText: '理由を入力してください'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('送信'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _refreshProfile() async {
     setState(() {
       _statsFuture = _fetchFollowStats();
@@ -360,7 +461,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final isFilteringPosts = _hasActivePostFilters;
 
     return Scaffold(
-      appBar: AppBar(elevation: 0),
+      appBar: AppBar(
+        elevation: 0,
+        actions: [
+          if (_user.email != widget.currentEmail)
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'report') {
+                  _reportUser();
+                } else if (value == 'block') {
+                  _blockUser();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'report', child: Text('通報')),
+                PopupMenuItem(value: 'block', child: Text('ブロック')),
+              ],
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
         child: NotificationListener<OverscrollNotification>(
@@ -619,7 +738,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   ),
                 ),
               ),
-              _UserPostsGrid(postsFuture: _postsFuture),
+              _UserPostsGrid(
+                postsFuture: _postsFuture,
+                currentEmail: widget.currentEmail,
+              ),
             ],
           ),
         ),
@@ -670,9 +792,10 @@ class _ProfileStat extends StatelessWidget {
 }
 
 class _UserPostsGrid extends StatelessWidget {
-  const _UserPostsGrid({required this.postsFuture});
+  const _UserPostsGrid({required this.postsFuture, required this.currentEmail});
 
   final Future<List<FoodPost>> postsFuture;
+  final String currentEmail;
 
   @override
   Widget build(BuildContext context) {
@@ -719,8 +842,11 @@ class _UserPostsGrid extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          UserPostDetailPage(posts: posts, initialIndex: index),
+                      builder: (_) => UserPostDetailPage(
+                        posts: posts,
+                        initialIndex: index,
+                        currentEmail: currentEmail,
+                      ),
                     ),
                   );
                 },
@@ -751,10 +877,12 @@ class UserPostDetailPage extends StatefulWidget {
     super.key,
     required this.posts,
     required this.initialIndex,
+    required this.currentEmail,
   });
 
   final List<FoodPost> posts;
   final int initialIndex;
+  final String currentEmail;
 
   @override
   State<UserPostDetailPage> createState() => _UserPostDetailPageState();
@@ -796,7 +924,10 @@ class _UserPostDetailPageState extends State<UserPostDetailPage> {
         itemBuilder: (context, index) {
           return KeyedSubtree(
             key: _postKeys[index],
-            child: InstaPostCard(post: widget.posts[index]),
+            child: InstaPostCard(
+              post: widget.posts[index],
+              currentEmail: widget.currentEmail,
+            ),
           );
         },
       ),

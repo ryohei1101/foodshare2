@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:foodshare/New_or_login.dart';
 import 'package:foodshare/Standard.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/reset_password_page.dart';
 import 'package:http/http.dart' as http;
 
 class LoginPage extends StatefulWidget {
@@ -179,6 +180,17 @@ class _LoginPageState extends State<LoginPage> {
                       )
                     : const Icon(Icons.login),
                 label: Text(isLoading ? "ログイン中" : "ログインする"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ResetPasswordPage(),
+                    ),
+                  );
+                },
+                child: const Text('パスワードを忘れた場合'),
               ),
               const SizedBox(height: 12),
               OutlinedButton(

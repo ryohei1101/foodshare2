@@ -24,7 +24,9 @@ import urllib.parse
 
 import urllib.request
 
-from datetime import datetime
+import random
+
+from datetime import datetime, timedelta
 
 from pathlib import Path
 
@@ -98,6 +100,71 @@ def ensure_posts_table():
 
     cur.close()
     conn.close()
+
+
+def ensure_release_tables():
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN DEFAULT FALSE")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_code TEXT")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMP")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_code TEXT")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMP")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_accepted_at TIMESTAMP")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_consent_at TIMESTAMP")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_blocks (
+            blocker_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            blocked_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (blocker_email, blocked_email),
+            CHECK (blocker_email <> blocked_email)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reports (
+            id SERIAL PRIMARY KEY,
+            reporter_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+            target_type TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            target_owner_email TEXT,
+            reason TEXT NOT NULL,
+            detail TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            status TEXT DEFAULT 'open'
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS email_verifications (
+            email TEXT PRIMARY KEY,
+            code TEXT NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            verified_at TIMESTAMP
+        )
+        """
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+
+def new_email_code() -> str:
+
+    return f"{random.randint(100000, 999999)}"
 
 
 def ensure_follows_table():
@@ -585,8 +652,50 @@ class VoteDmPollRequest(BaseModel):
     option_ids: list[int]
 
 
+class EmailRequest(BaseModel):
+
+    email: str
+
+
+class VerifyEmailRequest(BaseModel):
+
+    email: str
+    code: str
+
+
+class ResetPasswordRequest(BaseModel):
+
+    email: str
+    code: str
+    new_password: str
+
+
+class DeleteAccountRequest(BaseModel):
+
+    email: str
+    password: str
+
+
+class ReportRequest(BaseModel):
+
+    reporter_email: str
+    target_type: str
+    target_id: str
+    target_owner_email: Optional[str] = None
+    reason: str
+    detail: Optional[str] = ""
+
+
+class BlockRequest(BaseModel):
+
+    blocker_email: str
+    blocked_email: str
+
+
 @app.post("/login")
 def login(data: LoginRequest):
+
+    ensure_release_tables()
 
     conn = psycopg2.connect(
         dbname="account_manage",
@@ -691,6 +800,8 @@ def register(user: User):
 
     print(user)
 
+    ensure_release_tables()
+
     try:
 
         conn = psycopg2.connect(
@@ -706,6 +817,27 @@ def register(user: User):
 
         cur.execute(
             """
+            SELECT verified_at
+            FROM email_verifications
+            WHERE email = %s
+            """,
+            (user.email,)
+        )
+
+        verification_row = cur.fetchone()
+
+        if not verification_row or not verification_row[0]:
+
+            cur.close()
+            conn.close()
+
+            raise HTTPException(
+                status_code=400,
+                detail="メール認証を完了してください"
+            )
+
+        cur.execute(
+            """
             INSERT INTO users (
 
                 username,
@@ -716,7 +848,11 @@ def register(user: User):
                 role,
                 uuid,
                 sex,
-                birthday
+                birthday,
+                is_email_verified,
+                terms_accepted_at,
+                privacy_accepted_at,
+                location_consent_at
 
             )
 
@@ -729,7 +865,11 @@ def register(user: User):
                 %s,
                 %s,
                 %s,
-                %s
+                %s,
+                %s,
+                NOW(),
+                NOW(),
+                NOW()
             )
             """,
             (
@@ -747,7 +887,9 @@ def register(user: User):
 
                 user.gender,
 
-                user.birthday
+                user.birthday,
+
+                True
             )
         )
 
@@ -773,6 +915,170 @@ def register(user: User):
             "status": "error",
             "detail": str(e)
         }
+
+
+@app.post("/request-email-verification")
+def request_email_verification(data: EmailRequest):
+
+    ensure_release_tables()
+
+    code = new_email_code()
+    expires_at = datetime.now() + timedelta(minutes=15)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO email_verifications (email, code, expires_at, verified_at)
+        VALUES (%s, %s, %s, NULL)
+        ON CONFLICT (email)
+        DO UPDATE SET
+            code = EXCLUDED.code,
+            expires_at = EXCLUDED.expires_at,
+            verified_at = NULL
+        """,
+        (data.email, code, expires_at)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print(f"email verification code for {data.email}: {code}")
+
+    return {
+        "status": "ok"
+    }
+
+
+@app.post("/verify-email")
+def verify_email(data: VerifyEmailRequest):
+
+    ensure_release_tables()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT code, expires_at
+        FROM email_verifications
+        WHERE email = %s
+        """,
+        (data.email,)
+    )
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="認証コードを送信してください")
+
+    code, expires_at = row
+
+    if code != data.code or not expires_at or expires_at < datetime.now():
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail="認証コードが違うか期限切れです")
+
+    cur.execute(
+        """
+        UPDATE email_verifications
+        SET verified_at = NOW()
+        WHERE email = %s
+        """,
+        (data.email,)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"status": "ok"}
+
+
+@app.post("/request-password-reset")
+def request_password_reset(data: EmailRequest):
+
+    ensure_release_tables()
+
+    code = new_email_code()
+    expires_at = datetime.now() + timedelta(minutes=15)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE users
+        SET password_reset_code = %s,
+            password_reset_expires_at = %s
+        WHERE email = %s
+        """,
+        (code, expires_at, data.email)
+    )
+
+    if cur.rowcount == 0:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="メールアドレスが見つかりません")
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print(f"password reset code for {data.email}: {code}")
+
+    return {
+        "status": "ok"
+    }
+
+
+@app.post("/reset-password")
+def reset_password(data: ResetPasswordRequest):
+
+    ensure_release_tables()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT password_reset_code, password_reset_expires_at
+        FROM users
+        WHERE email = %s
+        """,
+        (data.email,)
+    )
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="メールアドレスが見つかりません")
+
+    code, expires_at = row
+
+    if code != data.code or not expires_at or expires_at < datetime.now():
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail="認証コードが違うか期限切れです")
+
+    cur.execute(
+        """
+        UPDATE users
+        SET password_hash = %s,
+            password_reset_code = NULL,
+            password_reset_expires_at = NULL
+        WHERE email = %s
+        """,
+        (data.new_password, data.email)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"status": "ok"}
 
 @app.post("/upload-post")
 async def upload_post(
@@ -936,6 +1242,7 @@ def reverse_geocode_endpoint(
 def get_posts(
     user_email: Optional[str] = None,
     following_email: Optional[str] = None,
+    viewer_email: Optional[str] = None,
     location: Optional[str] = None,
     price_range: Optional[str] = None,
     category: Optional[str] = None,
@@ -944,6 +1251,7 @@ def get_posts(
 ):
 
     ensure_posts_table()
+    ensure_release_tables()
 
     if following_email:
 
@@ -977,6 +1285,21 @@ def get_posts(
         )
 
         params.append(following_email)
+
+    if viewer_email:
+
+        conditions.append(
+            """
+            NOT EXISTS (
+                SELECT 1
+                FROM user_blocks b
+                WHERE b.blocker_email = %s
+                  AND b.blocked_email = p.user_email
+            )
+            """
+        )
+
+        params.append(viewer_email)
 
     if location:
 
@@ -1065,6 +1388,147 @@ def get_posts(
     }
 
 
+@app.delete("/posts/{post_id}")
+def delete_post(post_id: int, user_email: str):
+
+    ensure_posts_table()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "DELETE FROM posts WHERE id = %s AND user_email = %s RETURNING image_path",
+        (post_id, user_email)
+    )
+
+    row = cur.fetchone()
+
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="削除できる投稿が見つかりません")
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    image_path = row[0]
+    if image_path:
+        local_path = BASE_DIR / image_path
+        if local_path.exists() and local_path.is_file():
+            local_path.unlink()
+
+    return {"status": "ok"}
+
+
+@app.post("/reports")
+def create_report(data: ReportRequest):
+
+    ensure_release_tables()
+
+    if not data.reason.strip():
+        raise HTTPException(status_code=400, detail="通報理由を入力してください")
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO reports (
+            reporter_email,
+            target_type,
+            target_id,
+            target_owner_email,
+            reason,
+            detail
+        )
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (
+            data.reporter_email,
+            data.target_type,
+            data.target_id,
+            data.target_owner_email,
+            data.reason,
+            data.detail or "",
+        )
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"status": "ok"}
+
+
+@app.post("/block")
+def block_user(data: BlockRequest):
+
+    ensure_release_tables()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO user_blocks (blocker_email, blocked_email)
+        VALUES (%s, %s)
+        ON CONFLICT DO NOTHING
+        """,
+        (data.blocker_email, data.blocked_email)
+    )
+
+    cur.execute(
+        "DELETE FROM follows WHERE follower_email = %s AND following_email = %s",
+        (data.blocker_email, data.blocked_email)
+    )
+    cur.execute(
+        "DELETE FROM follows WHERE follower_email = %s AND following_email = %s",
+        (data.blocked_email, data.blocker_email)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"status": "ok"}
+
+
+@app.delete("/account")
+def delete_account(data: DeleteAccountRequest):
+
+    ensure_release_tables()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT password_hash FROM users WHERE email = %s",
+        (data.email,)
+    )
+
+    row = cur.fetchone()
+
+    if not row or row[0] != data.password:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=401, detail="パスワードが違います")
+
+    cur.execute(
+        "DELETE FROM users WHERE email = %s",
+        (data.email,)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"status": "ok"}
+
+
+@app.post("/delete-account")
+def delete_account_post(data: DeleteAccountRequest):
+
+    return delete_account(data)
+
+
 @app.get("/users")
 def get_users(
     exclude_email: Optional[str] = None,
@@ -1074,6 +1538,7 @@ def get_users(
 ):
 
     ensure_follows_table()
+    ensure_release_tables()
 
     search_query = query.strip() if query else ""
     safe_limit = max(1, min(limit, 100))
@@ -1097,6 +1562,21 @@ def get_users(
         conditions.append("(COALESCE(u.username, '') ILIKE %s OR u.email ILIKE %s)")
 
         params.extend([f"%{search_query}%", f"%{search_query}%"])
+
+    if viewer_email:
+
+        conditions.append(
+            """
+            NOT EXISTS (
+                SELECT 1
+                FROM user_blocks b
+                WHERE (b.blocker_email = %s AND b.blocked_email = u.email)
+                   OR (b.blocker_email = u.email AND b.blocked_email = %s)
+            )
+            """
+        )
+
+        params.extend([viewer_email, viewer_email])
 
     where_clause = ""
 

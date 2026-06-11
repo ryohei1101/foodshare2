@@ -198,7 +198,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       builder: (context) => AlertDialog(
         title: const Text('ブロックしますか？'),
         content: Text(
-          '${_user.username.isEmpty ? _user.email : _user.username}をブロックします。',
+          '${_user.username.isEmpty ? 'ユーザー' : _user.username}をブロックします。',
         ),
         actions: [
           TextButton(
@@ -483,7 +483,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = _user.username.isEmpty ? _user.email : _user.username;
+    final displayName = _user.username.isEmpty ? 'ユーザー' : _user.username;
     final isFilteringPosts = _hasActivePostFilters;
 
     return Scaffold(
@@ -566,16 +566,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                     color: foodInk,
                                     fontSize: 20,
                                     fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _user.email,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: foodMuted,
-                                    fontSize: 12,
                                   ),
                                 ),
                                 const SizedBox(height: 14),

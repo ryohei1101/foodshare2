@@ -100,10 +100,9 @@ class _FollowListPageState extends State<FollowListPage> {
                   backgroundImage: NetworkImage(user.profileImageUrl),
                 ),
                 title: Text(
-                  user.username.isEmpty ? user.email : user.username,
+                  user.username.isEmpty ? 'ユーザー' : user.username,
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
-                subtitle: Text(user.email),
                 onTap: () {
                   Navigator.push(
                     context,

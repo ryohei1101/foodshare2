@@ -330,10 +330,9 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
                   backgroundImage: NetworkImage(user.profileImageUrl),
                 ),
                 title: Text(
-                  user.username.isEmpty ? user.email : user.username,
+                  user.username.isEmpty ? 'ユーザー' : user.username,
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
-                subtitle: Text(user.email),
               );
             },
           );
@@ -525,10 +524,9 @@ class _AddGroupMembersPageState extends State<AddGroupMembersPage> {
                         backgroundImage: NetworkImage(user.profileImageUrl),
                       ),
                       title: Text(
-                        user.username.isEmpty ? user.email : user.username,
+                        user.username.isEmpty ? 'ユーザー' : user.username,
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                      subtitle: Text(user.email),
                     );
                   },
                 ),
@@ -740,10 +738,9 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
                       backgroundImage: NetworkImage(user.profileImageUrl),
                     ),
                     title: Text(
-                      user.username.isEmpty ? user.email : user.username,
+                      user.username.isEmpty ? 'ユーザー' : user.username,
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
-                    subtitle: Text(user.email),
                   );
                 },
               );

@@ -230,7 +230,7 @@ class _AccountSearchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = user.username.isEmpty ? user.email : user.username;
+    final displayName = user.username.isEmpty ? 'ユーザー' : user.username;
 
     return InkWell(
       onTap: onPressed,
@@ -269,13 +269,6 @@ class _AccountSearchRow extends StatelessWidget {
                       color: foodInk,
                       fontWeight: FontWeight.w800,
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    user.email,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: foodMuted, fontSize: 12),
                   ),
                 ],
               ),

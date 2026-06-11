@@ -586,7 +586,6 @@ class _DmThreadPageState extends State<DmThreadPage> {
                             },
                             secondary: _RouletteAvatar(user: member, size: 42),
                             title: Text(_displayUserName(member)),
-                            subtitle: Text(member.email),
                           );
                         },
                       ),
@@ -928,12 +927,6 @@ class _RouletteResultDialogState extends State<_RouletteResultDialog> {
                 fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              _currentUser.email,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: foodMuted),
-            ),
           ],
         ),
       ),
@@ -980,7 +973,7 @@ class _RouletteAvatar extends StatelessWidget {
 }
 
 String _displayUserName(FoodUser user) {
-  return user.username.isEmpty ? user.email : user.username;
+  return user.username.isEmpty ? 'ユーザー' : user.username;
 }
 
 class _ThreadList extends StatelessWidget {
@@ -1349,7 +1342,7 @@ class DmThread {
     if (isGroup) return groupName;
     final user = otherUser;
     if (user == null) return '';
-    return user.username.isEmpty ? user.email : user.username;
+    return user.username.isEmpty ? 'ユーザー' : user.username;
   }
 
   factory DmThread.fromJson(Map<String, dynamic> json) {
@@ -1413,12 +1406,12 @@ class DmCandidate {
     if (isGroup) return groupName;
     final foodUser = user;
     if (foodUser == null) return '';
-    return foodUser.username.isEmpty ? foodUser.email : foodUser.username;
+    return foodUser.username.isEmpty ? 'ユーザー' : foodUser.username;
   }
 
   String get subtitle {
     if (isGroup) return '$memberCount人のグループ';
-    return user?.email ?? '';
+    return 'ユーザー';
   }
 }
 

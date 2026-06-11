@@ -502,25 +502,29 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: Image.network(
-                              _user.profileImageUrl,
-                              width: 96,
-                              height: 96,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) {
-                                return Container(
-                                  width: 96,
-                                  height: 96,
-                                  color: foodLine,
-                                  alignment: Alignment.center,
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: foodMuted,
-                                  ),
-                                );
-                              },
+                          SizedBox(
+                            width: 96,
+                            height: 96,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: foodSurface,
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Image.network(
+                                  _user.profileImageUrl,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) {
+                                    return const Center(
+                                      child: Icon(
+                                        Icons.person,
+                                        color: foodMuted,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 22),

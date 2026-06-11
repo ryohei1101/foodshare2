@@ -615,12 +615,11 @@ class _ProfileImage extends StatelessWidget {
       height: 104,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF3EA),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: foodLine),
+          color: foodSurface,
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(2),
           child: Image.network(
             imageUrl,
             fit: BoxFit.contain,

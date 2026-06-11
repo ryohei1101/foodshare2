@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:foodshare/New_or_login.dart';
 import 'package:foodshare/app_ui.dart';
@@ -26,6 +27,8 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _isVerifying = false;
   bool _isEmailVerified = false;
   String _message = '';
+  int _debugTapCount = 0;
+  DateTime? _lastDebugTapAt;
 
   @override
   void initState() {
@@ -144,17 +147,55 @@ class _SignUpPageState extends State<SignUpPage> {
       _agreedPrivacy &&
       _agreedLocation;
 
+  void _handleDebugNextTap() {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastDebugTapAt == null ||
+        now.difference(_lastDebugTapAt!) > const Duration(seconds: 2)) {
+      _debugTapCount = 0;
+    }
+
+    _lastDebugTapAt = now;
+    _debugTapCount += 1;
+
+    if (_debugTapCount < 2) {
+      return;
+    }
+
+    _debugTapCount = 0;
+    final email = emailController.text.trim().isEmpty
+        ? 'debug-${DateTime.now().millisecondsSinceEpoch}@test.com'
+        : emailController.text.trim();
+    final password = passwordController.text.isEmpty
+        ? 'debug-password'
+        : passwordController.text;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QuestionPage(email: email, password: password),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FoodScaffold(
       children: [
         const SizedBox(height: 12),
-        const Text(
-          "アカウント作成",
-          style: TextStyle(
-            color: foodInk,
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleDebugNextTap,
+          child: const Text(
+            "アカウント作成",
+            style: TextStyle(
+              color: foodInk,
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
         const SizedBox(height: 8),

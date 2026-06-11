@@ -148,7 +148,7 @@ class _UserNamePageState extends State<UserNamePage> {
         builder: (context) => const InstaHome(
           email: 'dummy5@test.com',
           birthday: '',
-          profileImage: "",
+          profileImage: 'uploads/characters/man/man_navy.png',
           username: 'dummy5',
         ),
       ),

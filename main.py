@@ -794,6 +794,8 @@ class User(BaseModel):
 
     birthday: str
 
+    profile_image: Optional[str] = ""
+
 
 @app.post("/register")
 def register(user: User):
@@ -849,6 +851,7 @@ def register(user: User):
                 uuid,
                 sex,
                 birthday,
+                profile_image,
                 is_email_verified,
                 terms_accepted_at,
                 privacy_accepted_at,
@@ -861,6 +864,7 @@ def register(user: User):
                 %s,
                 %s,
                 NOW(),
+                %s,
                 %s,
                 %s,
                 %s,
@@ -888,6 +892,8 @@ def register(user: User):
                 user.gender,
 
                 user.birthday,
+
+                user.profile_image if user.profile_image else "",
 
                 True
             )

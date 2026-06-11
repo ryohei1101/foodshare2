@@ -11,6 +11,7 @@ class UserNamePage extends StatefulWidget {
   final String password;
   final String gender;
   final DateTime birthday;
+  final String profileImage;
 
   const UserNamePage({
     super.key,
@@ -18,6 +19,7 @@ class UserNamePage extends StatefulWidget {
     required this.password,
     required this.gender,
     required this.birthday,
+    required this.profileImage,
   });
 
   @override
@@ -42,6 +44,7 @@ class _UserNamePageState extends State<UserNamePage> {
     required String username,
     required String gender,
     required DateTime birthday,
+    required String profileImage,
   }) async {
     final url = Uri.parse("http://10.0.2.2:8000/register");
 
@@ -55,6 +58,7 @@ class _UserNamePageState extends State<UserNamePage> {
           "username": username,
           "gender": gender,
           "birthday": birthday.toIso8601String().split("T")[0],
+          "profile_image": profileImage,
         }),
       );
 
@@ -84,6 +88,7 @@ class _UserNamePageState extends State<UserNamePage> {
       username: username,
       gender: widget.gender,
       birthday: widget.birthday,
+      profileImage: widget.profileImage,
     );
 
     if (!mounted) return;
@@ -99,7 +104,7 @@ class _UserNamePageState extends State<UserNamePage> {
           builder: (context) => InstaHome(
             email: widget.email,
             birthday: widget.birthday.toIso8601String().split("T")[0],
-            profileImage: "",
+            profileImage: widget.profileImage,
           ),
         ),
       );

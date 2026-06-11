@@ -1,8 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:foodshare/User_name_register.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/character_select_page.dart';
 
 class QuestionPage extends StatefulWidget {
   final String email;
@@ -42,7 +42,7 @@ class _QuestionPageState extends State<QuestionPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => UserNamePage(
+        builder: (_) => CharacterSelectPage(
           email: 'dummy5@test.com',
           password: '',
           gender: selectedGender ?? 'その他',
@@ -116,7 +116,7 @@ class _QuestionPageState extends State<QuestionPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => UserNamePage(
+                            builder: (_) => CharacterSelectPage(
                               email: widget.email,
                               password: widget.password,
                               gender: selectedGender!,

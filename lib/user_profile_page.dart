@@ -525,95 +525,79 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 96,
-                            height: 96,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: foodSurface,
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(2),
-                                child: Image.network(
-                                  _user.profileImageUrl,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) {
-                                    return const Center(
-                                      child: Icon(
-                                        Icons.person,
-                                        color: foodMuted,
-                                      ),
-                                    );
-                                  },
-                                ),
+                      Center(
+                        child: SizedBox(
+                          width: 132,
+                          height: 132,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: foodSurface,
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: Image.network(
+                                _user.profileImageUrl,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) {
+                                  return const Center(
+                                    child: Icon(Icons.person, color: foodMuted),
+                                  );
+                                },
                               ),
                             ),
                           ),
-                          const SizedBox(width: 22),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: foodInk,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                FutureBuilder<Map<String, int>>(
-                                  future: _statsFuture,
-                                  builder: (context, statsSnapshot) {
-                                    return FutureBuilder<int>(
-                                      future: _groupCountFuture,
-                                      builder: (context, groupSnapshot) {
-                                        final stats =
-                                            statsSnapshot.data ??
-                                            const {
-                                              'followers_count': 0,
-                                              'following_count': 0,
-                                            };
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        displayName,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: foodInk,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FutureBuilder<Map<String, int>>(
+                        future: _statsFuture,
+                        builder: (context, statsSnapshot) {
+                          return FutureBuilder<int>(
+                            future: _groupCountFuture,
+                            builder: (context, groupSnapshot) {
+                              final stats =
+                                  statsSnapshot.data ??
+                                  const {
+                                    'followers_count': 0,
+                                    'following_count': 0,
+                                  };
 
-                                        return Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            _ProfileStat(
-                                              label: 'フォロワー',
-                                              count:
-                                                  stats['followers_count'] ?? 0,
-                                              onTap: () =>
-                                                  _openFollowList('followers'),
-                                            ),
-                                            _ProfileStat(
-                                              label: 'フォロー',
-                                              count:
-                                                  stats['following_count'] ?? 0,
-                                              onTap: () =>
-                                                  _openFollowList('following'),
-                                            ),
-                                            _ProfileStat(
-                                              label: 'グループ',
-                                              count: groupSnapshot.data ?? 0,
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                              return Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _ProfileStat(
+                                    label: 'フォロワー',
+                                    count: stats['followers_count'] ?? 0,
+                                    onTap: () => _openFollowList('followers'),
+                                  ),
+                                  _ProfileStat(
+                                    label: 'フォロー',
+                                    count: stats['following_count'] ?? 0,
+                                    onTap: () => _openFollowList('following'),
+                                  ),
+                                  _ProfileStat(
+                                    label: 'グループ',
+                                    count: groupSnapshot.data ?? 0,
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
                       ),
                       if (_user.email != widget.currentEmail) ...[
                         const SizedBox(height: 16),

@@ -434,76 +434,64 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _ProfileImage(profileImage: _profileImage),
-                          const SizedBox(width: 22),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.username.isEmpty
-                                      ? widget.email
-                                      : widget.username,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: foodInk,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                FutureBuilder<Map<String, int>>(
-                                  future: _followStatsFuture,
-                                  builder: (context, followSnapshot) {
-                                    return FutureBuilder<int>(
-                                      future: _groupCountFuture,
-                                      builder: (context, groupSnapshot) {
-                                        final stats =
-                                            followSnapshot.data ??
-                                            const {
-                                              'followers_count': 0,
-                                              'following_count': 0,
-                                            };
-
-                                        return Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            _FollowStatButton(
-                                              label: 'フォロワー',
-                                              count:
-                                                  stats['followers_count'] ?? 0,
-                                              onTap: () =>
-                                                  _openFollowList('followers'),
-                                            ),
-                                            _FollowStatButton(
-                                              label: 'フォロー',
-                                              count:
-                                                  stats['following_count'] ?? 0,
-                                              onTap: () =>
-                                                  _openFollowList('following'),
-                                            ),
-                                            _FollowStatButton(
-                                              label: 'グループ',
-                                              count: groupSnapshot.data ?? 0,
-                                              onTap: _openGroupList,
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                      Center(
+                        child: _ProfileImage(
+                          profileImage: _profileImage,
+                          size: 132,
+                        ),
                       ),
-                      const SizedBox(height: 26),
+                      const SizedBox(height: 12),
+                      Text(
+                        widget.username.isEmpty ? 'ユーザー' : widget.username,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: foodInk,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FutureBuilder<Map<String, int>>(
+                        future: _followStatsFuture,
+                        builder: (context, followSnapshot) {
+                          return FutureBuilder<int>(
+                            future: _groupCountFuture,
+                            builder: (context, groupSnapshot) {
+                              final stats =
+                                  followSnapshot.data ??
+                                  const {
+                                    'followers_count': 0,
+                                    'following_count': 0,
+                                  };
+
+                              return Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _FollowStatButton(
+                                    label: 'フォロワー',
+                                    count: stats['followers_count'] ?? 0,
+                                    onTap: () => _openFollowList('followers'),
+                                  ),
+                                  _FollowStatButton(
+                                    label: 'フォロー',
+                                    count: stats['following_count'] ?? 0,
+                                    onTap: () => _openFollowList('following'),
+                                  ),
+                                  _FollowStatButton(
+                                    label: 'グループ',
+                                    count: groupSnapshot.data ?? 0,
+                                    onTap: _openGroupList,
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
                       Container(
                         height: 40,
                         padding: const EdgeInsets.all(3),
@@ -632,9 +620,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 }
 
 class _ProfileImage extends StatelessWidget {
-  const _ProfileImage({required this.profileImage});
+  const _ProfileImage({required this.profileImage, this.size = 104});
 
   final String profileImage;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -643,12 +632,12 @@ class _ProfileImage extends StatelessWidget {
         : "http://10.0.2.2:8000/uploads/cutiestreet.png";
 
     return SizedBox(
-      width: 104,
-      height: 104,
+      width: size,
+      height: size,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: foodSurface,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(size * 0.23),
         ),
         child: Padding(
           padding: const EdgeInsets.all(2),

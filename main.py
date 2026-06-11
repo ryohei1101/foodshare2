@@ -547,6 +547,13 @@ def post_row_to_dict(row):
         "username": row[12] if len(row) > 12 and row[12] else row[1],
     }
 
+
+class ProfileImageRequest(BaseModel):
+
+    email: str
+    profile_image: str
+
+
 # =========================
 # ⭐ プロフィール画像アップロード
 # =========================
@@ -682,12 +689,6 @@ class LoginRequest(BaseModel):
 
     email: str
     password: str
-
-
-class ProfileImageRequest(BaseModel):
-
-    email: str
-    profile_image: str
 
 
 class FollowRequest(BaseModel):

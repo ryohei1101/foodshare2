@@ -166,17 +166,11 @@ class _SignUpPageState extends State<SignUpPage> {
     }
 
     _debugTapCount = 0;
-    final email = emailController.text.trim().isEmpty
-        ? 'debug-${DateTime.now().millisecondsSinceEpoch}@test.com'
-        : emailController.text.trim();
-    final password = passwordController.text.isEmpty
-        ? 'debug-password'
-        : passwordController.text;
-
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => QuestionPage(email: email, password: password),
+        builder: (_) =>
+            const QuestionPage(email: 'dummy5@test.com', password: ''),
       ),
     );
   }

@@ -43,8 +43,8 @@ class _QuestionPageState extends State<QuestionPage> {
       context,
       MaterialPageRoute(
         builder: (_) => UserNamePage(
-          email: widget.email,
-          password: widget.password,
+          email: 'dummy5@test.com',
+          password: '',
           gender: selectedGender ?? 'その他',
           birthday: selectedDate,
         ),

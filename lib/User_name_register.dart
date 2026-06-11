@@ -132,11 +132,8 @@ class _UserNamePageState extends State<UserNamePage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => InstaHome(
-          email: widget.email,
-          birthday: widget.birthday.toIso8601String().split("T")[0],
-          profileImage: "",
-        ),
+        builder: (context) =>
+            InstaHome(email: 'dummy5@test.com', birthday: '', profileImage: ""),
       ),
     );
   }

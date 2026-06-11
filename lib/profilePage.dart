@@ -362,6 +362,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         elevation: 0,
         toolbarHeight: 44,
         title: const SizedBox.shrink(),
@@ -374,6 +375,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                 MaterialPageRoute(
                   builder: (_) => AccountSettingsPage(
                     email: widget.email,
+                    currentProfileImage: _profileImage,
                     onProfileImageChanged: (imagePath) {
                       setState(() {
                         _profileImage = imagePath;

@@ -616,6 +616,65 @@ async def upload_profile_image(
         )
 
 
+@app.post("/update-profile-image")
+def update_profile_image(data: ProfileImageRequest):
+
+    allowed_prefix = "uploads/characters/"
+    profile_image = data.profile_image.strip()
+
+    if not profile_image.startswith(allowed_prefix):
+
+        raise HTTPException(
+            status_code=400,
+            detail="選択できない画像です"
+        )
+
+    image_path = BASE_DIR / profile_image
+
+    if not image_path.exists():
+
+        raise HTTPException(
+            status_code=404,
+            detail="画像が見つかりません"
+        )
+
+    conn = get_db_connection()
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE users
+        SET profile_image = %s
+        WHERE email = %s
+        RETURNING profile_image
+        """,
+        (
+            profile_image,
+            data.email
+        )
+    )
+
+    row = cur.fetchone()
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+
+        raise HTTPException(
+            status_code=404,
+            detail="ユーザーが見つかりません"
+        )
+
+    return {
+        "message": "profile image updated",
+        "profile_image": row[0]
+    }
+
+
 # =========================
 # ⭐ Login
 # =========================
@@ -623,6 +682,12 @@ class LoginRequest(BaseModel):
 
     email: str
     password: str
+
+
+class ProfileImageRequest(BaseModel):
+
+    email: str
+    profile_image: str
 
 
 class FollowRequest(BaseModel):

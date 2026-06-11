@@ -225,15 +225,12 @@ class _CharacterColorPageState extends State<CharacterColorPage> {
             ),
             child: Padding(
               padding: const EdgeInsets.all(18),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 160),
-                  child: Image.asset(
-                    _selectedCharacter.assetPath,
-                    key: ValueKey(_selectedCharacter.assetPath),
-                    fit: BoxFit.cover,
-                  ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: Image.asset(
+                  _selectedCharacter.assetPath,
+                  key: ValueKey(_selectedCharacter.assetPath),
+                  fit: BoxFit.contain,
                 ),
               ),
             ),
@@ -332,7 +329,7 @@ class _CharacterKindCard extends StatelessWidget {
                 aspectRatio: 1,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(character.assetPath, fit: BoxFit.cover),
+                  child: Image.asset(character.assetPath, fit: BoxFit.contain),
                 ),
               ),
               const SizedBox(height: 10),

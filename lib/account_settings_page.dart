@@ -3,18 +3,20 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:foodshare/New_or_login.dart';
 import 'package:foodshare/app_ui.dart';
+import 'package:foodshare/character_profile_edit_page.dart';
 import 'package:foodshare/legal_pages.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({
     super.key,
     required this.email,
+    required this.currentProfileImage,
     required this.onProfileImageChanged,
   });
 
   final String email;
+  final String currentProfileImage;
   final ValueChanged<String> onProfileImageChanged;
 
   @override
@@ -23,8 +25,14 @@ class AccountSettingsPage extends StatefulWidget {
 
 class _AccountSettingsPageState extends State<AccountSettingsPage> {
   final _passwordController = TextEditingController();
+  late String _currentProfileImage;
   bool _isDeleting = false;
-  bool _isUploadingImage = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentProfileImage = widget.currentProfileImage;
+  }
 
   @override
   void dispose() {
@@ -101,57 +109,28 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     }
   }
 
-  Future<void> _changeProfileImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+  Future<void> _openCharacterEditor() async {
+    final imagePath = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CharacterProfileEditPage(
+          email: widget.email,
+          currentProfileImage: _currentProfileImage,
+        ),
+      ),
+    );
 
-    if (image == null) {
+    if (!mounted || imagePath == null || imagePath.isEmpty) {
       return;
     }
 
     setState(() {
-      _isUploadingImage = true;
+      _currentProfileImage = imagePath;
     });
-
-    try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('http://10.0.2.2:8000/upload-profile-image'),
-      );
-      request.fields['email'] = widget.email;
-      request.files.add(await http.MultipartFile.fromPath('file', image.path));
-
-      final response = await request.send();
-      final body = await response.stream.bytesToString();
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(body) as Map<String, dynamic>;
-        final imagePath = data['file_path'] as String? ?? '';
-        if (imagePath.isNotEmpty) {
-          widget.onProfileImageChanged(imagePath);
-        }
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('プロフィール画像を更新しました')));
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('画像変更に失敗しました')));
-      }
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('通信エラーが発生しました')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploadingImage = false;
-        });
-      }
-    }
+    widget.onProfileImageChanged(imagePath);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('プロフィール画像を更新しました')));
   }
 
   @override
@@ -168,14 +147,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             subtitle: const Text('画像はプロフィール画面に表示されます'),
-            trailing: _isUploadingImage
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.chevron_right),
-            onTap: _isUploadingImage ? null : _changeProfileImage,
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _openCharacterEditor,
           ),
         ),
         const SizedBox(height: 18),

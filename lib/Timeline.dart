@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/genre_options.dart';
 import 'package:foodshare/map_focus_store.dart';
-import 'package:foodshare/post_attributes.dart';
 import 'package:foodshare/post_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -24,31 +23,10 @@ class _TimeLinePageState extends State<TimeLinePage>
   late Future<List<FoodPost>> _recommendedPostsFuture;
   late Future<List<FoodPost>> _followingPostsFuture;
   String? _selectedLocationFilter;
-  String? _selectedPriceFilter;
   String? _selectedCategoryFilter;
-  String? _selectedTagFilter;
-
-  final List<String> _priceFilters = const [
-    "~2000円",
-    "2000~3000円",
-    "3000円~4000円",
-    "4000~5000円",
-    "5000~6000円",
-    "6000~7000円",
-    "7000~8000円",
-    "8000~9000円",
-    "9000円~10000円",
-    "10000~15000円",
-    "15000~20000円",
-    "20000~30000円",
-    "30000円以上",
-  ];
 
   bool get _hasActiveFilters =>
-      _selectedLocationFilter != null ||
-      _selectedPriceFilter != null ||
-      _selectedCategoryFilter != null ||
-      _selectedTagFilter != null;
+      _selectedLocationFilter != null || _selectedCategoryFilter != null;
 
   @override
   void initState() {
@@ -69,9 +47,7 @@ class _TimeLinePageState extends State<TimeLinePage>
       'limit': '50',
       if (followingEmail != null) 'following_email': followingEmail,
       if (_selectedLocationFilter != null) 'location': _selectedLocationFilter!,
-      if (_selectedPriceFilter != null) 'price_range': _selectedPriceFilter!,
       if (_selectedCategoryFilter != null) 'category': _selectedCategoryFilter!,
-      if (_selectedTagFilter != null) 'tag': _selectedTagFilter!,
     });
   }
 
@@ -133,9 +109,7 @@ class _TimeLinePageState extends State<TimeLinePage>
 
     setState(() {
       _selectedLocationFilter = null;
-      _selectedPriceFilter = null;
       _selectedCategoryFilter = null;
-      _selectedTagFilter = null;
       _recommendedPostsFuture = _fetchLatestPosts();
       _followingPostsFuture = _fetchFollowingPosts();
     });
@@ -145,9 +119,7 @@ class _TimeLinePageState extends State<TimeLinePage>
     final locationController = TextEditingController(
       text: _selectedLocationFilter ?? '',
     );
-    String? price = _selectedPriceFilter;
     String? category = _selectedCategoryFilter;
-    String? tag = _selectedTagFilter;
 
     showModalBottomSheet<void>(
       context: context,
@@ -186,68 +158,11 @@ class _TimeLinePageState extends State<TimeLinePage>
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        '誰と',
-                        style: TextStyle(
-                          color: foodInk,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      CompanionFilterSelector(
-                        value: isCompanionAttribute(tag) ? tag : null,
-                        onChanged: (value) {
-                          setSheetState(() {
-                            tag = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
                       FoodGenreSelector(
                         value: category,
-                        recommendedGenreNames:
-                            recommendedGenreNamesForCompanion(tag),
                         onChanged: (value) {
                           setSheetState(() {
                             category = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: price,
-                        hint: const Text('価格帯'),
-                        items: _priceFilters
-                            .map(
-                              (value) => DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setSheetState(() {
-                            price = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        '席・喫煙',
-                        style: TextStyle(
-                          color: foodInk,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      PostAttributeFilterSelector(
-                        value: isCompanionAttribute(tag) ? null : tag,
-                        groups: facilityAttributeGroups,
-                        onChanged: (value) {
-                          setSheetState(() {
-                            tag = value;
                           });
                         },
                       ),
@@ -259,9 +174,7 @@ class _TimeLinePageState extends State<TimeLinePage>
                                 locationController.text.trim().isEmpty
                                 ? null
                                 : locationController.text.trim();
-                            _selectedPriceFilter = price;
                             _selectedCategoryFilter = category;
-                            _selectedTagFilter = tag;
                           });
                           Navigator.pop(context);
                           _reloadFeeds();

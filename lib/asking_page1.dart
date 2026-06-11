@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:foodshare/User_name_register.dart';
 import 'package:foodshare/app_ui.dart';
@@ -16,18 +17,56 @@ class QuestionPage extends StatefulWidget {
 class _QuestionPageState extends State<QuestionPage> {
   DateTime selectedDate = DateTime(2000, 1, 1);
   String? selectedGender;
+  int _debugTapCount = 0;
+  DateTime? _lastDebugTapAt;
+
+  void _handleDebugNextTap() {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastDebugTapAt == null ||
+        now.difference(_lastDebugTapAt!) > const Duration(seconds: 2)) {
+      _debugTapCount = 0;
+    }
+
+    _lastDebugTapAt = now;
+    _debugTapCount += 1;
+
+    if (_debugTapCount < 2) {
+      return;
+    }
+
+    _debugTapCount = 0;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserNamePage(
+          email: widget.email,
+          password: widget.password,
+          gender: selectedGender ?? 'その他',
+          birthday: selectedDate,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return FoodScaffold(
       children: [
         const SizedBox(height: 12),
-        const Text(
-          "プロフィール設定",
-          style: TextStyle(
-            color: foodInk,
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleDebugNextTap,
+          child: const Text(
+            "プロフィール設定",
+            style: TextStyle(
+              color: foodInk,
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
         const SizedBox(height: 8),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:foodshare/Standard.dart';
 import 'package:foodshare/app_ui.dart';
@@ -26,6 +27,8 @@ class UserNamePage extends StatefulWidget {
 class _UserNamePageState extends State<UserNamePage> {
   final TextEditingController nameController = TextEditingController();
   bool isLoading = false;
+  int _debugTapCount = 0;
+  DateTime? _lastDebugTapAt;
 
   @override
   void dispose() {
@@ -107,17 +110,52 @@ class _UserNamePageState extends State<UserNamePage> {
     }
   }
 
+  void _handleDebugCompleteTap() {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastDebugTapAt == null ||
+        now.difference(_lastDebugTapAt!) > const Duration(seconds: 2)) {
+      _debugTapCount = 0;
+    }
+
+    _lastDebugTapAt = now;
+    _debugTapCount += 1;
+
+    if (_debugTapCount < 2) {
+      return;
+    }
+
+    _debugTapCount = 0;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InstaHome(
+          email: widget.email,
+          birthday: widget.birthday.toIso8601String().split("T")[0],
+          profileImage: "",
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FoodScaffold(
       children: [
         const SizedBox(height: 12),
-        const Text(
-          "ユーザー名",
-          style: TextStyle(
-            color: foodInk,
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleDebugCompleteTap,
+          child: const Text(
+            "ユーザー名",
+            style: TextStyle(
+              color: foodInk,
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
         const SizedBox(height: 8),

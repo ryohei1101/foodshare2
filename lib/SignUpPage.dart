@@ -272,21 +272,6 @@ class _SignUpPageState extends State<SignUpPage> {
             ],
           ),
         ),
-        const SizedBox(height: 28),
-        const Text(
-          "最近行った店を投稿して、好みの合う人を見つけよう",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: foodInk,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 14),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Image.asset('assets/way1.png', height: 230, fit: BoxFit.cover),
-        ),
       ],
     );
   }

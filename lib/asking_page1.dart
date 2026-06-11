@@ -96,21 +96,6 @@ class _QuestionPageState extends State<QuestionPage> {
             ],
           ),
         ),
-        const SizedBox(height: 28),
-        const Text(
-          "次に行く店の相談から待ち合わせまで",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: foodInk,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 14),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Image.asset('assets/way2.png', height: 230, fit: BoxFit.cover),
-        ),
       ],
     );
   }

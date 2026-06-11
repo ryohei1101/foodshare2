@@ -158,21 +158,6 @@ class _UserNamePageState extends State<UserNamePage> {
             ],
           ),
         ),
-        const SizedBox(height: 28),
-        const Text(
-          "条件に合わせて近くの店を検索",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: foodInk,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 14),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Image.asset('assets/way3.png', height: 230, fit: BoxFit.cover),
-        ),
       ],
     );
   }

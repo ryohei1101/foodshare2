@@ -877,9 +877,9 @@ class _RouletteResultDialog extends StatefulWidget {
 }
 
 class _RouletteResultDialogState extends State<_RouletteResultDialog> {
-  final _random = Random();
   Timer? _timer;
   late FoodUser _currentUser;
+  late FoodUser _winner;
   bool _finished = false;
   int _tick = 0;
 
@@ -887,17 +887,31 @@ class _RouletteResultDialogState extends State<_RouletteResultDialog> {
   void initState() {
     super.initState();
     _currentUser = widget.members.first;
+    _winner = widget.members[_randomIndex(widget.members.length)];
     _timer = Timer.periodic(const Duration(milliseconds: 90), (timer) {
       if (!mounted) return;
       setState(() {
         _tick += 1;
-        _currentUser = widget.members[_random.nextInt(widget.members.length)];
         if (_tick >= 28) {
+          _currentUser = _winner;
           _finished = true;
           _timer?.cancel();
+        } else {
+          _currentUser = widget.members[_tick % widget.members.length];
         }
       });
     });
+  }
+
+  int _randomIndex(int length) {
+    final seed =
+        DateTime.now().microsecondsSinceEpoch ^
+        identityHashCode(this) ^
+        widget.members.fold<int>(
+          0,
+          (value, member) => value ^ member.email.hashCode,
+        );
+    return Random(seed).nextInt(length);
   }
 
   @override

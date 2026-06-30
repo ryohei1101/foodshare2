@@ -32,23 +32,42 @@ class _InstaHomeState extends State<InstaHome> {
   int _currentIndex = 0;
   int _unreadDmCount = 0;
   Timer? _unreadTimer;
+  final Map<int, Widget> _pageCache = {};
 
-  List<Widget> get _pages => [
-    OSMMapPage(email: widget.email),
+  Widget _pageAt(int index) {
+    return _pageCache.putIfAbsent(index, () {
+      return switch (index) {
+        0 => OSMMapPage(email: widget.email),
+        1 => TimeLinePage(email: widget.email),
+        2 => DmPage(
+          currentEmail: widget.email,
+          onUnreadChanged: _fetchUnreadDmCount,
+        ),
+        3 => AccountSearchPage(currentEmail: widget.email),
+        4 => ProfilePage(
+          email: widget.email,
+          birthday: widget.birthday,
+          profileImage: widget.profileImage,
+          username: widget.username,
+        ),
+        _ => OSMMapPage(email: widget.email),
+      };
+    });
+  }
 
-    TimeLinePage(email: widget.email),
-
-    DmPage(currentEmail: widget.email, onUnreadChanged: _fetchUnreadDmCount),
-
-    AccountSearchPage(currentEmail: widget.email),
-
-    ProfilePage(
-      email: widget.email,
-      birthday: widget.birthday,
-      profileImage: widget.profileImage,
-      username: widget.username,
-    ),
-  ];
+  Widget _cachedPagesStack(int pageIndex) {
+    _pageAt(pageIndex);
+    return Stack(
+      fit: StackFit.expand,
+      children: _pageCache.entries.map((entry) {
+        final isActive = entry.key == pageIndex;
+        return Offstage(
+          offstage: !isActive,
+          child: TickerMode(enabled: isActive, child: entry.value),
+        );
+      }).toList(),
+    );
+  }
 
   @override
   void initState() {
@@ -112,13 +131,12 @@ class _InstaHomeState extends State<InstaHome> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = _pages;
-    final pageIndex = _currentIndex < pages.length ? _currentIndex : 0;
+    final pageIndex = _currentIndex.clamp(0, 4);
 
     return Scaffold(
       appBar: null,
 
-      body: pages[pageIndex],
+      body: _cachedPagesStack(pageIndex),
 
       bottomNavigationBar: NavigationBar(
         backgroundColor: Colors.white,

@@ -116,6 +116,12 @@ def ensure_release_tables():
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP")
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_accepted_at TIMESTAMP")
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_consent_at TIMESTAMP")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS taste_spicy_sweet INTEGER DEFAULT 50")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS taste_rich_light INTEGER DEFAULT 50")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS taste_meat_fish INTEGER DEFAULT 50")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS favorite_food TEXT DEFAULT ''")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS disliked_food TEXT DEFAULT ''")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS school_lunch_food TEXT DEFAULT ''")
 
     cur.execute(
         """
@@ -784,6 +790,17 @@ class BlockRequest(BaseModel):
 
     blocker_email: str
     blocked_email: str
+
+
+class TasteProfileRequest(BaseModel):
+
+    email: str
+    taste_spicy_sweet: int = 50
+    taste_rich_light: int = 50
+    taste_meat_fish: int = 50
+    favorite_food: Optional[str] = ""
+    disliked_food: Optional[str] = ""
+    school_lunch_food: Optional[str] = ""
 
 
 @app.post("/login")
@@ -1755,6 +1772,108 @@ def get_users(
             for row in rows
         ]
     }
+
+
+def _taste_profile_response(row):
+
+    return {
+        "taste_spicy_sweet": int(row[0] if row[0] is not None else 50),
+        "taste_rich_light": int(row[1] if row[1] is not None else 50),
+        "taste_meat_fish": int(row[2] if row[2] is not None else 50),
+        "favorite_food": row[3] if row[3] else "",
+        "disliked_food": row[4] if row[4] else "",
+        "school_lunch_food": row[5] if row[5] else "",
+    }
+
+
+@app.get("/taste-profile")
+def get_taste_profile(email: str):
+
+    ensure_release_tables()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            taste_spicy_sweet,
+            taste_rich_light,
+            taste_meat_fish,
+            favorite_food,
+            disliked_food,
+            school_lunch_food
+        FROM users
+        WHERE email = %s
+        """,
+        (email,)
+    )
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+
+        raise HTTPException(status_code=404, detail="user not found")
+
+    return _taste_profile_response(row)
+
+
+@app.post("/taste-profile")
+def update_taste_profile(data: TasteProfileRequest):
+
+    ensure_release_tables()
+
+    def clamp_score(value: int) -> int:
+
+        return max(0, min(100, int(value)))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE users
+        SET
+            taste_spicy_sweet = %s,
+            taste_rich_light = %s,
+            taste_meat_fish = %s,
+            favorite_food = %s,
+            disliked_food = %s,
+            school_lunch_food = %s
+        WHERE email = %s
+        RETURNING
+            taste_spicy_sweet,
+            taste_rich_light,
+            taste_meat_fish,
+            favorite_food,
+            disliked_food,
+            school_lunch_food
+        """,
+        (
+            clamp_score(data.taste_spicy_sweet),
+            clamp_score(data.taste_rich_light),
+            clamp_score(data.taste_meat_fish),
+            (data.favorite_food or "").strip(),
+            (data.disliked_food or "").strip(),
+            (data.school_lunch_food or "").strip(),
+            data.email,
+        )
+    )
+
+    row = cur.fetchone()
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+
+        raise HTTPException(status_code=404, detail="user not found")
+
+    return _taste_profile_response(row)
 
 
 @app.get("/follow-stats")

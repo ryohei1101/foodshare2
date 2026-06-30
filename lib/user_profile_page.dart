@@ -7,8 +7,11 @@ import 'package:foodshare/follow_list_page.dart';
 import 'package:foodshare/genre_options.dart';
 import 'package:foodshare/post_attributes.dart';
 import 'package:foodshare/post_model.dart';
+import 'package:foodshare/taste_profile.dart';
 import 'package:foodshare/user_model.dart';
 import 'package:http/http.dart' as http;
+
+enum _ProfileSection { profile, posts }
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({
@@ -29,6 +32,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
   late Future<Map<String, int>> _statsFuture;
   late Future<int> _groupCountFuture;
   late Future<List<FoodPost>> _postsFuture;
+  late Future<TasteProfile> _tasteProfileFuture;
+  _ProfileSection _selectedSection = _ProfileSection.profile;
   bool _isUpdatingFollow = false;
   String? _selectedLocationFilter;
   String? _selectedPriceFilter;
@@ -64,6 +69,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _statsFuture = _fetchFollowStats();
     _groupCountFuture = _fetchGroupCount();
     _postsFuture = _fetchPosts();
+    _tasteProfileFuture = _fetchTasteProfile();
   }
 
   Future<Map<String, int>> _fetchFollowStats() async {
@@ -120,6 +126,28 @@ class _UserProfilePageState extends State<UserProfilePage> {
     final data = jsonDecode(response.body) as Map<String, dynamic>;
 
     return data['groups_count'] as int? ?? 0;
+  }
+
+  Future<TasteProfile> _fetchTasteProfile() async {
+    final uri = Uri.parse(
+      'http://10.0.2.2:8000/taste-profile?email=${Uri.encodeComponent(_user.email)}',
+    );
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      return const TasteProfile(
+        spicySweet: 50,
+        richLight: 50,
+        meatFish: 50,
+        favoriteFood: '',
+        dislikedFood: '',
+        schoolLunchFood: '',
+      );
+    }
+
+    return TasteProfile.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   Future<void> _toggleFollow() async {
@@ -271,8 +299,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
       _statsFuture = _fetchFollowStats();
       _groupCountFuture = _fetchGroupCount();
       _postsFuture = _fetchPosts();
+      _tasteProfileFuture = _fetchTasteProfile();
     });
-    await Future.wait([_statsFuture, _groupCountFuture, _postsFuture]);
+    await Future.wait([
+      _statsFuture,
+      _groupCountFuture,
+      _postsFuture,
+      _tasteProfileFuture,
+    ]);
   }
 
   void _clearPostFilters() {
@@ -485,6 +519,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Widget build(BuildContext context) {
     final displayName = _user.username.isEmpty ? 'ユーザー' : _user.username;
     final isFilteringPosts = _hasActivePostFilters;
+    final isProfileSelected = _selectedSection == _ProfileSection.profile;
 
     return Scaffold(
       appBar: AppBar(
@@ -525,230 +560,360 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Center(
-                        child: SizedBox(
-                          width: 132,
-                          height: 132,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: foodSurface,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(2),
-                              child: Image.network(
-                                _user.profileImageUrl,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) {
-                                  return const Center(
-                                    child: Icon(Icons.person, color: foodMuted),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        displayName,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: foodInk,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      FutureBuilder<Map<String, int>>(
-                        future: _statsFuture,
-                        builder: (context, statsSnapshot) {
-                          return FutureBuilder<int>(
-                            future: _groupCountFuture,
-                            builder: (context, groupSnapshot) {
-                              final stats =
-                                  statsSnapshot.data ??
-                                  const {
-                                    'followers_count': 0,
-                                    'following_count': 0,
-                                  };
-
-                              return Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  _ProfileStat(
-                                    label: 'フォロワー',
-                                    count: stats['followers_count'] ?? 0,
-                                    onTap: () => _openFollowList('followers'),
-                                  ),
-                                  _ProfileStat(
-                                    label: 'フォロー',
-                                    count: stats['following_count'] ?? 0,
-                                    onTap: () => _openFollowList('following'),
-                                  ),
-                                  _ProfileStat(
-                                    label: 'グループ',
-                                    count: groupSnapshot.data ?? 0,
-                                  ),
-                                ],
-                              );
-                            },
-                          );
+                      _ProfileSectionSwitch(
+                        selectedSection: _selectedSection,
+                        onChanged: (section) {
+                          setState(() {
+                            _selectedSection = section;
+                          });
                         },
                       ),
-                      if (_user.email != widget.currentEmail) ...[
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 44,
-                          child: _user.isFollowing
-                              ? OutlinedButton(
-                                  onPressed: _isUpdatingFollow
-                                      ? null
-                                      : _toggleFollow,
-                                  child: Text(
-                                    _isUpdatingFollow ? '更新中' : 'フォロー中',
-                                  ),
-                                )
-                              : ElevatedButton(
-                                  onPressed: _isUpdatingFollow
-                                      ? null
-                                      : _toggleFollow,
-                                  child: Text(
-                                    _isUpdatingFollow ? '更新中' : 'フォローする',
-                                  ),
-                                ),
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      Container(
-                        height: 40,
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE9E9ED),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                height: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: isFilteringPosts
-                                      ? Colors.transparent
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: isFilteringPosts
-                                      ? null
-                                      : Border.all(
-                                          color: const Color(0xFFBFC0C4),
-                                        ),
-                                  boxShadow: isFilteringPosts
-                                      ? null
-                                      : const [
-                                          BoxShadow(
-                                            color: Color(0x1A000000),
-                                            blurRadius: 3,
-                                            offset: Offset(0, 1),
-                                          ),
-                                        ],
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.grid_on, size: 15),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '投稿',
-                                      style: TextStyle(
-                                        color: isFilteringPosts
-                                            ? foodInk
-                                            : foodPrimary,
-                                        fontWeight: FontWeight.w800,
+                      const SizedBox(height: 22),
+                      if (isProfileSelected) ...[
+                        Center(
+                          child: SizedBox(
+                            width: 132,
+                            height: 132,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: foodSurface,
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Image.network(
+                                  _user.profileImageUrl,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) {
+                                    return const Center(
+                                      child: Icon(
+                                        Icons.person,
+                                        color: foodMuted,
                                       ),
-                                    ),
-                                  ],
+                                    );
+                                  },
                                 ),
                               ),
                             ),
-                            Expanded(
-                              child: Container(
-                                height: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: isFilteringPosts
-                                      ? Colors.white
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: isFilteringPosts
-                                      ? Border.all(
-                                          color: const Color(0xFFBFC0C4),
-                                        )
-                                      : null,
-                                  boxShadow: isFilteringPosts
-                                      ? const [
-                                          BoxShadow(
-                                            color: Color(0x1A000000),
-                                            blurRadius: 3,
-                                            offset: Offset(0, 1),
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: _showPostFilterSheet,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        isFilteringPosts
-                                            ? Icons.manage_search
-                                            : Icons.search,
-                                        color: isFilteringPosts
-                                            ? foodPrimary
-                                            : foodInk,
-                                        size: 17,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '絞り込み',
-                                        style: TextStyle(
-                                          color: isFilteringPosts
-                                              ? foodPrimary
-                                              : foodInk,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_hasActivePostFilters)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Text(
-                            '上に引っ張ると条件を解除できます',
-                            style: TextStyle(color: foodMuted, fontSize: 12),
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        Text(
+                          displayName,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: foodInk,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        FutureBuilder<Map<String, int>>(
+                          future: _statsFuture,
+                          builder: (context, statsSnapshot) {
+                            return FutureBuilder<int>(
+                              future: _groupCountFuture,
+                              builder: (context, groupSnapshot) {
+                                final stats =
+                                    statsSnapshot.data ??
+                                    const {
+                                      'followers_count': 0,
+                                      'following_count': 0,
+                                    };
+
+                                return Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    _ProfileStat(
+                                      label: 'フォロワー',
+                                      count: stats['followers_count'] ?? 0,
+                                      onTap: () => _openFollowList('followers'),
+                                    ),
+                                    _ProfileStat(
+                                      label: 'フォロー',
+                                      count: stats['following_count'] ?? 0,
+                                      onTap: () => _openFollowList('following'),
+                                    ),
+                                    _ProfileStat(
+                                      label: 'グループ',
+                                      count: groupSnapshot.data ?? 0,
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                        if (_user.email != widget.currentEmail) ...[
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 44,
+                            child: _user.isFollowing
+                                ? OutlinedButton(
+                                    onPressed: _isUpdatingFollow
+                                        ? null
+                                        : _toggleFollow,
+                                    child: Text(
+                                      _isUpdatingFollow ? '更新中' : 'フォロー中',
+                                    ),
+                                  )
+                                : ElevatedButton(
+                                    onPressed: _isUpdatingFollow
+                                        ? null
+                                        : _toggleFollow,
+                                    child: Text(
+                                      _isUpdatingFollow ? '更新中' : 'フォローする',
+                                    ),
+                                  ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        FutureBuilder<TasteProfile>(
+                          future: _tasteProfileFuture,
+                          builder: (context, snapshot) {
+                            final profile =
+                                snapshot.data ??
+                                const TasteProfile(
+                                  spicySweet: 50,
+                                  richLight: 50,
+                                  meatFish: 50,
+                                  favoriteFood: '',
+                                  dislikedFood: '',
+                                  schoolLunchFood: '',
+                                );
+
+                            return TasteProfileCard(profile: profile);
+                          },
+                        ),
+                      ] else ...[
+                        _PostFilterSwitch(
+                          isFilteringPosts: isFilteringPosts,
+                          onFilterTap: _showPostFilterSheet,
+                        ),
+                        if (_hasActivePostFilters)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              '上に引っ張ると条件を解除できます',
+                              style: TextStyle(color: foodMuted, fontSize: 12),
+                            ),
+                          ),
+                      ],
                     ],
                   ),
                 ),
               ),
-              _UserPostsGrid(
-                postsFuture: _postsFuture,
-                currentEmail: widget.currentEmail,
+              if (!isProfileSelected)
+                _UserPostsGrid(
+                  postsFuture: _postsFuture,
+                  currentEmail: widget.currentEmail,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileSectionSwitch extends StatelessWidget {
+  const _ProfileSectionSwitch({
+    required this.selectedSection,
+    required this.onChanged,
+  });
+
+  final _ProfileSection selectedSection;
+  final ValueChanged<_ProfileSection> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9E9ED),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          _ProfileSectionButton(
+            label: 'プロフィール',
+            icon: Icons.person_outline,
+            selected: selectedSection == _ProfileSection.profile,
+            onTap: () => onChanged(_ProfileSection.profile),
+          ),
+          _ProfileSectionButton(
+            label: '投稿',
+            icon: Icons.grid_on,
+            selected: selectedSection == _ProfileSection.posts,
+            onTap: () => onChanged(_ProfileSection.posts),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSectionButton extends StatelessWidget {
+  const _ProfileSectionButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: selected
+                ? Border.all(color: const Color(0xFFBFC0C4))
+                : null,
+            boxShadow: selected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: selected ? foodPrimary : foodInk),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? foodPrimary : foodInk,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PostFilterSwitch extends StatelessWidget {
+  const _PostFilterSwitch({
+    required this.isFilteringPosts,
+    required this.onFilterTap,
+  });
+
+  final bool isFilteringPosts;
+  final VoidCallback onFilterTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9E9ED),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: isFilteringPosts ? Colors.transparent : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: isFilteringPosts
+                    ? null
+                    : Border.all(color: const Color(0xFFBFC0C4)),
+                boxShadow: isFilteringPosts
+                    ? null
+                    : const [
+                        BoxShadow(
+                          color: Color(0x1A000000),
+                          blurRadius: 3,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.grid_on, size: 15),
+                  const SizedBox(width: 8),
+                  Text(
+                    '投稿',
+                    style: TextStyle(
+                      color: isFilteringPosts ? foodInk : foodPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: isFilteringPosts ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                border: isFilteringPosts
+                    ? Border.all(color: const Color(0xFFBFC0C4))
+                    : null,
+                boxShadow: isFilteringPosts
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x1A000000),
+                          blurRadius: 3,
+                          offset: Offset(0, 1),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: onFilterTap,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isFilteringPosts ? Icons.manage_search : Icons.search,
+                      color: isFilteringPosts ? foodPrimary : foodInk,
+                      size: 17,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '絞り込み',
+                      style: TextStyle(
+                        color: isFilteringPosts ? foodPrimary : foodInk,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

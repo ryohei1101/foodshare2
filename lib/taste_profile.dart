@@ -98,50 +98,41 @@ class TasteProfileCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Column(
               children: [
-                Expanded(
-                  flex: 6,
-                  child: SizedBox(
-                    height: 248,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _TasteMeter(
-                            leftLabel: '辛党',
-                            rightLabel: '甘党',
-                            value: profile.spicySweet,
-                          ),
-                          const SizedBox(height: 12),
-                          _TasteMeter(
-                            leftLabel: '濃味',
-                            rightLabel: '薄味',
-                            value: profile.richLight,
-                          ),
-                          const SizedBox(height: 12),
-                          _TasteMeter(
-                            leftLabel: '肉',
-                            rightLabel: '魚',
-                            value: profile.meatFish,
-                          ),
-                        ],
-                      ),
-                    ),
+                _TasteProfileRow(
+                  meter: _TasteMeter(
+                    leftLabel: '辛党',
+                    rightLabel: '甘党',
+                    value: profile.spicySweet,
+                  ),
+                  bubble: _TasteBubble(
+                    label: '好き',
+                    value: profile.favoriteFood,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 4,
-                  child: Column(
-                    children: [
-                      _TasteBubble(label: '好き', value: profile.favoriteFood),
-                      const SizedBox(height: 10),
-                      _TasteBubble(label: '苦手', value: profile.dislikedFood),
-                      const SizedBox(height: 10),
-                      _TasteBubble(label: '給食', value: profile.schoolLunchFood),
-                    ],
+                const SizedBox(height: 10),
+                _TasteProfileRow(
+                  meter: _TasteMeter(
+                    leftLabel: '濃味',
+                    rightLabel: '薄味',
+                    value: profile.richLight,
+                  ),
+                  bubble: _TasteBubble(
+                    label: '苦手',
+                    value: profile.dislikedFood,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _TasteProfileRow(
+                  meter: _TasteMeter(
+                    leftLabel: '肉',
+                    rightLabel: '魚',
+                    value: profile.meatFish,
+                  ),
+                  bubble: _TasteBubble(
+                    label: '給食',
+                    value: profile.schoolLunchFood,
                   ),
                 ),
               ],
@@ -149,6 +140,25 @@ class TasteProfileCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TasteProfileRow extends StatelessWidget {
+  const _TasteProfileRow({required this.meter, required this.bubble});
+
+  final Widget meter;
+  final Widget bubble;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(flex: 6, child: meter),
+        const SizedBox(width: 12),
+        Expanded(flex: 4, child: bubble),
+      ],
     );
   }
 }

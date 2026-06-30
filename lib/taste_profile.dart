@@ -103,26 +103,32 @@ class TasteProfileCard extends StatelessWidget {
               children: [
                 Expanded(
                   flex: 6,
-                  child: Column(
-                    children: [
-                      _TasteMeter(
-                        leftLabel: '辛党',
-                        rightLabel: '甘党',
-                        value: profile.spicySweet,
+                  child: SizedBox(
+                    height: 248,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _TasteMeter(
+                            leftLabel: '辛党',
+                            rightLabel: '甘党',
+                            value: profile.spicySweet,
+                          ),
+                          const SizedBox(height: 12),
+                          _TasteMeter(
+                            leftLabel: '濃味',
+                            rightLabel: '薄味',
+                            value: profile.richLight,
+                          ),
+                          const SizedBox(height: 12),
+                          _TasteMeter(
+                            leftLabel: '肉',
+                            rightLabel: '魚',
+                            value: profile.meatFish,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      _TasteMeter(
-                        leftLabel: '濃味',
-                        rightLabel: '薄味',
-                        value: profile.richLight,
-                      ),
-                      const SizedBox(height: 12),
-                      _TasteMeter(
-                        leftLabel: '肉',
-                        rightLabel: '魚',
-                        value: profile.meatFish,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),

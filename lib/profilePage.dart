@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:foodshare/Timeline.dart';
 import 'package:foodshare/account_settings_page.dart';
+import 'package:foodshare/animated_character_image.dart';
 import 'package:foodshare/app_ui.dart';
 import 'package:foodshare/follow_list_page.dart';
 import 'package:foodshare/genre_options.dart';
@@ -741,26 +742,7 @@ class _ProfileImage extends StatelessWidget {
         ? "http://10.0.2.2:8000/$profileImage"
         : "http://10.0.2.2:8000/uploads/cutiestreet.png";
 
-    return SizedBox(
-      width: size,
-      height: size,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: foodSurface,
-          borderRadius: BorderRadius.circular(size * 0.23),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(2),
-          child: Image.network(
-            imageUrl,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) {
-              return const Center(child: Icon(Icons.person, color: foodMuted));
-            },
-          ),
-        ),
-      ),
-    );
+    return AnimatedCharacterImage(imageUrl: imageUrl, size: size);
   }
 }
 

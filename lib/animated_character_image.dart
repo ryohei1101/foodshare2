@@ -67,18 +67,26 @@ class _AnimatedCharacterImageState extends State<AnimatedCharacterImage>
                 var translateX = 0.0;
                 var translateY = 0.0;
                 var rotation = 0.0;
-                var scale = 1.0;
+                var scaleX = 1.0;
+                var scaleY = 1.0;
 
                 if (segment == 0) {
-                  translateY = wave * 4;
-                  scale = 1 + wave.abs() * 0.012;
+                  final step = math.sin(progress * math.pi * 4);
+                  translateX = wave * 10;
+                  translateY = -step.abs() * 3;
+                  rotation = step * 0.035;
                 } else if (segment == 1) {
-                  translateX = wave * 2.5;
-                  rotation = wave * 0.035;
+                  final crouch = (1 - math.cos(progress * math.pi * 2)) / 2;
+                  translateY = crouch * 16;
+                  scaleX = 1 + crouch * 0.1;
+                  scaleY = 1 - crouch * 0.22;
                 } else {
-                  final hop = math.max(0.0, wave);
-                  translateY = -hop * 6;
-                  scale = 1 + hop * 0.035;
+                  final recline = math.sin(progress * math.pi).clamp(0.0, 1.0);
+                  translateX = recline * 8;
+                  translateY = recline * 22;
+                  rotation = recline * 1.18;
+                  scaleX = 1 - recline * 0.12;
+                  scaleY = 1 - recline * 0.12;
                 }
 
                 return TweenAnimationBuilder<double>(
@@ -92,7 +100,8 @@ class _AnimatedCharacterImageState extends State<AnimatedCharacterImage>
                       child: Transform.rotate(
                         angle: rotation,
                         child: Transform.scale(
-                          scale: scale * tapScale,
+                          scaleX: scaleX * tapScale,
+                          scaleY: scaleY * tapScale,
                           child: animatedChild,
                         ),
                       ),
